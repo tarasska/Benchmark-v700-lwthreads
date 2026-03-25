@@ -66,8 +66,8 @@ public:
     }
 
     V find(const int tid, const K& key) {
-        // return ds->find(tid, key);
-        return nullptr;
+        return ds->find(tid, key);
+        // return nullptr;
     }
 
     V push(const int tid, const K& key) {

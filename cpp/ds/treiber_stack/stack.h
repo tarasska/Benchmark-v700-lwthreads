@@ -12,7 +12,7 @@ using namespace std;
 
 typedef intptr_t skey_t;
 
-#define CACHE_LINE_SIZE 64
+#define CACHE_LINE_SIZE 128
 
 template <typename K>
 struct mstack_node
@@ -39,11 +39,11 @@ struct alignas(CACHE_LINE_SIZE) mstack
         }
     }
 
-    K find(const int tid, skey_t key) {
+    K* find(const int tid, skey_t key) {
         mstack_node<K>* curr = top.load(memory_order_acquire);
         while (curr != nullptr) {
             if (curr->key == key) {
-                return curr->key;
+                return new K(curr->key);
             }
             curr = curr->next;
             boost::this_fiber::yield();

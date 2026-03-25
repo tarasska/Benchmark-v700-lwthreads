@@ -206,21 +206,17 @@ Statistic get_statistic(int64_t elapsed_millis) {
     return Statistic(elapsed_millis / 1000.);
 }
 
+#define RUN_COROUTINES true
+
 void execute(globals_t* g, Parameters* parameters) {
     std::thread** threads = new std::thread*[MAX_THREADS_POW2];
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
-
+    #ifndef RUN_COROUTINES
     std::cout << "binding threads...\n";
     binding_setCustom(parameters->get_pin());
     bind_threads(parameters->get_num_threads());
 
     std::cout << "creating threads...\n";
-    // int num_coroutine_threads = parameters->get_num_threads();
-    // auto thread_adapter = std::make_unique<CoroutineThreadAdapter<K, ThreadLoop>>(
-    //     parameters->get_num_threads(), 
-    //     num_coroutine_threads
-    // );
-
     for (int i = 0; i < parameters->get_num_threads(); ++i) {
         threads[i] = new std::thread(&ThreadLoop::run, thread_loops[i]);
     }
@@ -229,7 +225,7 @@ void execute(globals_t* g, Parameters* parameters) {
         TRACE COUTATOMIC("main thread: waiting for threads to START running=" << g->running
                                                                               << std::endl);
     }  // wait for all threads to be ready
-
+    #endif
     ////////////////////////////////////
 
     SOFTWARE_BARRIER;
@@ -241,13 +237,29 @@ void execute(globals_t* g, Parameters* parameters) {
     ___timeline_use = 1;
 #endif
 
+    #ifdef RUN_COROUTINES
     parameters->stopCondition->start(parameters->get_num_threads());
     g->start = true;
     SOFTWARE_BARRIER;
-
+    std::cout << "initing fibers...\n";
+    #include <boost/fiber/all.hpp>
+    #include <vector>
+    boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
+    const int num_fibers = parameters->get_num_threads();
+    std::vector<boost::fibers::fiber> fibers(num_fibers);
+    for (int i = 0; i < num_fibers; ++i) {
+        fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
+    }
+    std::cout << "done initiating...\n";
+    for (int i = 0; i < parameters->get_num_threads(); ++i) {
+        fibers[i].join();
+    }
+    std::cout << "finished\n";
+    #else
     for (size_t i = 0; i < parameters->get_num_threads(); ++i) {
         threads[i]->join();
     }
+    #endif
 
     SOFTWARE_BARRIER;
     g->done = true;

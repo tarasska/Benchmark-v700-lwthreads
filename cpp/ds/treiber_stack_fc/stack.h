@@ -11,7 +11,7 @@ using namespace std;
 
 typedef intptr_t skey_t;
 
-#define CACHE_LINE_SIZE 64
+#define CACHE_LINE_SIZE 128
 
 template <typename K>
 struct mstack_node
@@ -26,39 +26,34 @@ enum class RequestType {
     NONE,
     PUSH,
     POP,
-    FIND,
-    EMPTY
+    FIND
 };
 
 template <typename K>
-struct alignas(CACHE_LINE_SIZE) FCRequest {
-    atomic<RequestType> req_type;
-    atomic<bool> completed;
-    
-    skey_t key;
-    
-    unique_ptr<K> result;
-    bool bool_result;
-    
-    FCRequest() : req_type(RequestType::NONE), completed(false), 
-                 key(0), bool_result(false) {}
+struct request {
+    RequestType type;
+    int tid;
+    skey_t key;                    
+    std::unique_ptr<K>* result;   
+    bool completed;              
+    std::mutex mutex;
+    std::condition_variable cv;
+
+    request(RequestType t, int id, skey_t k, std::unique_ptr<K>* r)
+        : type(t), tid(id), key(k), result(r), completed(false) {}
 };
 
 template <typename K>
-struct alignas(CACHE_LINE_SIZE) mstack
-{
-    mstack_node<K>* top;
-    
-    atomic<int> combiner_lock;
-    static constexpr int MAX_THREADS = 32;
-    FCRequest<K> op_records[MAX_THREADS];
-    
-    static constexpr int FC_PASSES = 2;
+struct alignas(CACHE_LINE_SIZE) mstack {
+    std::atomic<mstack_node<K>*> top;
+    std::vector<request<K>> request_queue;
+    std::mutex queue_mutex;               
+    std::atomic<bool> combining_in_progress{false};
 
-    mstack() : top(nullptr), combiner_lock(0) {}
-    
+    mstack() : top(nullptr) {}
+
     ~mstack() {
-        mstack_node<K>* curr = top;
+        mstack_node<K>* curr = top.load();
         while (curr != nullptr) {
             mstack_node<K>* temp = curr;
             curr = curr->next;
@@ -66,129 +61,125 @@ struct alignas(CACHE_LINE_SIZE) mstack
         }
     }
 
-private:
-    bool try_lock() {
-        int expected = 0;
-        return combiner_lock.compare_exchange_strong(
-            expected, 1, 
-            memory_order_acquire, 
-            memory_order_relaxed
-        );
-    }
-    
-    void unlock() {
-        combiner_lock.store(0, memory_order_release);
-    }
-    
-    unique_ptr<K> sequential_push(skey_t key) {
-        mstack_node<K>* new_node = new mstack_node<K>(key);
-        new_node->next = top;
-        top = new_node;
-        return std::make_unique<K>(key);
-    }
-    
-    unique_ptr<K> sequential_pop() {
-        if (top == nullptr) {
-            return nullptr;
-        }
-        mstack_node<K>* old_top = top;
-        top = top->next;
-        auto result = old_top->key;
-        delete old_top;
-        return std::make_unique<K>(result);
-    }
-    
-    K sequential_find(skey_t key) {
-        mstack_node<K>* curr = top;
-        while (curr != nullptr) {
-            if (curr->key == key) {
-                return curr->key;
-            }
-            curr = curr->next;
-        }
-        return K{};
-    }
-    
-    bool sequential_empty() const {
-        return top == nullptr;
-    }
-    
-    void combine_operations() {
-        for (int pass = 0; pass < FC_PASSES; ++pass) {
-            for (int tid = 0; tid < MAX_THREADS; ++tid) {
-                FCRequest<K>& record = op_records[tid];
-                
-                RequestType op = record.req_type.load(memory_order_acquire);
-                
-                if (op == RequestType::NONE || record.completed.load(memory_order_relaxed)) {
-                    continue;
-                }
-                
-                switch (op) {
-                    case RequestType::PUSH:
-                        record.result = sequential_push(record.key);
-                        break;
-                        
-                    case RequestType::POP:
-                        record.result = sequential_pop();
-                        break;
-                        
-                    case RequestType::FIND:
-                        record.result = std::make_unique<K>(sequential_find(record.key));
-                        break;
-                        
-                    case RequestType::EMPTY:
-                        record.bool_result = sequential_empty();
-                        break;
-                        
-                    default:
-                        break;
-                }
-                
-                record.completed.store(true, memory_order_release);
-            }
-        }
-    }
-    
-    template<typename ResultType>
-    ResultType execute_op(const int tid, RequestType op, skey_t key = 0) {
-        FCRequest<K>& record = op_records[tid];
-        
-        record.completed.store(false, memory_order_relaxed);
-        record.key = key;
-        record.req_type.store(op, memory_order_release);
-        
-        if (try_lock()) {
-            combine_operations();
-            unlock();
-        }
-        
-        record.req_type.store(RequestType::NONE, memory_order_relaxed);
-        
-        if constexpr (std::is_same_v<ResultType, unique_ptr<K>>) {
-            return std::move(record.result);
-        } else if constexpr (std::is_same_v<ResultType, K>) {
-            return record.result ? *record.result : K{};
-        } else if constexpr (std::is_same_v<ResultType, bool>) {
-            return record.bool_result;
-        }
+    std::unique_ptr<K> find(const int tid, skey_t key) {
+        std::unique_ptr<K> result;
+        request<K> req(RequestType::FIND, tid, key, &result);
+        submit_request(req);
+        return result;
     }
 
-public:
-    K find(const int tid, skey_t key) {
-        return execute_op<K>(tid, RequestType::FIND, key);
+    std::unique_ptr<K> push(const int tid, skey_t key) {
+        std::unique_ptr<K> result = std::make_unique<K>(key);
+        request<K> req(RequestType::PUSH, tid, key, &result);
+        submit_request(req);
+        return result;
     }
 
-    unique_ptr<K> push(const int tid, skey_t key) {
-        return execute_op<unique_ptr<K>>(tid, RequestType::PUSH, key);
-    }
-
-    unique_ptr<K> pop(const int tid) {
-        return execute_op<unique_ptr<K>>(tid, RequestType::POP);
+    std::unique_ptr<K> pop(const int tid) {
+        std::unique_ptr<K> result;
+        request<K> req(RequestType::POP, tid, 0, &result);
+        submit_request(req);
+        return result;
     }
 
     bool empty() const {
-        return top == nullptr;
+        return top.load(std::memory_order_acquire) == nullptr;
+    }
+
+    void submit_request(request<K>& req) {
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex);
+            request_queue.push_back(req);
+        }
+        while (try_combine()) {
+            combine();
+        } else {
+            
+        }
+        std::unique_lock<std::mutex> lk(req.mutex);
+        req.cv.wait(lk, [&req] { return req.completed; });
+    }
+
+    bool try_combine() {
+        return combining_in_progress.exchange(true, std::memory_order_acq_rel) == false;
+    }
+
+    void combine() {
+        std::vector<request<K>> local_queue;
+
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex);
+            local_queue = std::move(request_queue);
+            request_queue.clear();
+        }
+
+        for (auto& req : local_queue) {
+            switch (req.type) {
+                case RequestType::PUSH:do_push(req.key);
+                    break;
+                case RequestType::POP:
+                    *req.result = do_pop();
+                    break;
+                case RequestType::FIND:
+                    *req.result = do_find(req.key);
+                    break;
+            }
+            {
+                std::lock_guard<std::mutex> lock(req.mutex);
+                req.completed = true;
+            }
+            req.cv.notify_one();
+        }
+
+        combining_in_progress.store(false, std::memory_order_release);
+    }
+
+private:
+    void do_push(skey_t key) {
+        mstack_node<K>* new_node = new mstack_node<K>(static_cast<K>(key));
+        mstack_node<K>* expected = top.load(std::memory_order_relaxed);
+
+        do {
+            new_node->next = expected;
+        } while (!top.compare_exchange_weak(
+            expected,
+            new_node,
+            std::memory_order_release,
+            std::memory_order_relaxed
+        ));
+    }
+
+    std::unique_ptr<K> do_pop() {
+        mstack_node<K>* expected = top.load(std::memory_order_acquire);
+        mstack_node<K>* new_top;
+
+        do {
+            if (expected == nullptr) {
+                return nullptr;
+            }
+            new_top = expected->next;
+        } while (!top.compare_exchange_weak(
+            expected,
+            new_top,
+            std::memory_order_release,
+            std::memory_order_acquire
+        ));
+
+        auto result = std::make_unique<K>(expected->key);
+        delete expected;
+        return result;
+    }
+
+    std::unique_ptr<K> do_find(skey_t key) {
+        mstack_node<K>* curr = top.load(std::memory_order_acquire);
+        while (curr != nullptr) {
+            if (curr->key == key) {
+                return std::make_unique<K>(curr->key);
+            }
+            curr = curr->next;
+            boost::this_fiber::yield();
+        }
+        return nullptr;
     }
 
     mstack(const mstack&) = delete;

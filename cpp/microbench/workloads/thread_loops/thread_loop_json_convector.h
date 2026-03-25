@@ -8,6 +8,7 @@
 #include "workloads/thread_loops/map/impls/prefill_insert_thread_loop.h"
 #include "workloads/thread_loops/map/impls/temporary_operations_thread_loop.h"
 #include "workloads/thread_loops/queue/impls/stack_thread_loop.h"
+#include "workloads/thread_loops/queue/impls/prefill_insert_thread_loop.h"
 #include "errors.h"
 
 namespace microbench::workload {
@@ -30,6 +31,8 @@ ThreadLoopBuilder* get_thread_loop_from_json(const nlohmann::json& j) {
     #else
     if (class_name == "StackThreadLoopBuilder") {
         thread_loop_builder = new queue::StackThreadLoopBuilder();
+    } else if (class_name == "PrefillInsertThreadLoopBuilder") {
+        thread_loop_builder = new queue::PrefillInsertThreadLoopBuilder();
     }
     #endif
     thread_loop_builder->from_json(j);

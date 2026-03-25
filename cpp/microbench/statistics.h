@@ -50,14 +50,15 @@ struct Statistic {
         totalQueries = totalGets + totalRQs;
         totalInserts = GSTATS_GET_STAT_METRICS(num_inserts, TOTAL)[0].sum;
         totalRemoves = GSTATS_GET_STAT_METRICS(num_removes, TOTAL)[0].sum;
+        totalUpdates = totalInserts + totalRemoves;
         #if defined(USE_STACK_OPERATIONS) || defined(USE_QUEUE_OPERATIONS)
         totalPushes = GSTATS_GET_STAT_METRICS(num_pushes, TOTAL)[0].sum;
         totalPops = GSTATS_GET_STAT_METRICS(num_pops, TOTAL)[0].sum;
 
         totalSuccessfulPops = GSTATS_GET_STAT_METRICS(num_successful_pops, TOTAL)[0].sum;
         totalFailPops = GSTATS_GET_STAT_METRICS(num_fail_pops, TOTAL)[0].sum;
+        totalUpdates = totalPushes + totalPops;
         #endif
-        totalUpdates = totalInserts + totalRemoves;
 
         totalSuccessfulGets = GSTATS_GET_STAT_METRICS(num_successful_searches, TOTAL)[0].sum;
         totalSuccessfulInserts = GSTATS_GET_STAT_METRICS(num_successful_inserts, TOTAL)[0].sum;
@@ -101,6 +102,16 @@ struct Statistic {
             COUTATOMIC("total_successful_updates=" << totalSuccessfulUpdates << std::endl)
             COUTATOMIC("total_fail_updates=" << totalFailUpdates << std::endl)
         }
+        #if defined(USE_STACK_OPERATIONS) || defined(USE_QUEUE_OPERATIONS)
+        if (detail) {
+            COUTATOMIC("total_successful_pushes=" << totalPushes << std::endl)
+            COUTATOMIC("total_pops=" << totalPops << std::endl)
+        }
+        if (detail) {
+            COUTATOMIC("total_successful_pops=" << totalSuccessfulPops << std::endl)
+            COUTATOMIC("total_fail_pops=" << totalFailPops << std::endl)
+        }
+        #endif
         COUTATOMIC("total_queries=" << totalQueries << std::endl)
         COUTATOMIC("total_ops=" << totalAll << std::endl)
         COUTATOMIC("find_throughput=" << throughputSearches << std::endl)
@@ -138,6 +149,16 @@ struct Statistic {
                 indented_title_with_data("total successful updates", totalSuccessfulUpdates, 2, 32))
             COUTATOMIC(indented_title_with_data("total fail updates", totalFailUpdates, 2, 32))
         }
+        #if defined(USE_STACK_OPERATIONS) || defined(USE_QUEUE_OPERATIONS)
+        if (detail) {
+            COUTATOMIC(indented_title_with_data("total pushes", totalPushes, 2, 32))
+        }
+        COUTATOMIC(indented_title_with_data("total pops", totalPops, 1, 32))
+        if (detail) {COUTATOMIC(
+                indented_title_with_data("total successful pops", totalSuccessfulPops, 2, 32))
+            COUTATOMIC(indented_title_with_data("total fail pops", totalFailPops, 2, 32))
+        }
+        #endif
         COUTATOMIC(indented_title_with_data("total queries", totalQueries, 1, 32))
         COUTATOMIC(indented_title_with_data("total ops", totalAll, 1, 32))
         COUTATOMIC(indented_title_with_data("find throughput", throughputSearches, 1, 32))

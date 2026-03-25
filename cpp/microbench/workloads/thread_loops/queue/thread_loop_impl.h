@@ -6,13 +6,14 @@
 namespace microbench::workload::queue {
 
 #define THREAD_MEASURED_PRE                                                        \
+    this->g->dsAdapter->initThread(threadId);                                      \
     tid = this->threadId;                                                          \
-    binding_bindThread(tid);                                                       \
+    int cnt = 0;                                                                   \
+    //binding_bindThread(tid);                                                     \
     garbage = 0;                                                                   \
     NO_VALUE = this->g->dsAdapter->getNoValue();                                   \
     __RLU_INIT_THREAD;                                                             \
     __RCU_INIT_THREAD;                                                             \
-    this->g->dsAdapter->initThread(threadId);                                      \
     papi_create_eventset(tid);                                                     \
     __sync_fetch_and_add(&this->g->running, 1);                                    \
     __sync_synchronize();                                                          \
@@ -29,7 +30,7 @@ namespace microbench::workload::queue {
     DURATION_START(tid);
 
 #define THREAD_MEASURED_POST                                                       \
-    __sync_fetch_and_add(&this->g->running, -1);                                   \
+    //__sync_fetch_and_add(&this->g->running, -1);                                   \
     DURATION_END(tid, duration_all_ops);                                           \
     GSTATS_SET(tid, time_thread_terminate,                                         \
                std::chrono::duration_cast<std::chrono::microseconds>(              \
