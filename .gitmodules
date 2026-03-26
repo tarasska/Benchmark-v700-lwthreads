@@ -15,3 +15,6 @@
 [submodule "cpp/json"]
 	path = cpp/json
 	url = https://github.com/nlohmann/json.git
+[submodule "cpp/microbench/nasl-tools"]
+	path = cpp/microbench/nasl-tools
+	url = git@github.com:tarasska/nasl-tools.git

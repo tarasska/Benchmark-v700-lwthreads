@@ -65,12 +65,12 @@ if (SKIP_VALIDATION)
     add_definitions("-DSKIP_VALIDATION")
 endif ()
 
-if (USE_STACK_OPERATIONS)
+# if (USE_STACK_OPERATIONS)
     add_definitions("-DUSE_STACK_OPERATIONS")
-endif ()
-if (USE_QUEUE_OPERATIONS)
+# endif ()
+# if (USE_QUEUE_OPERATIONS)
     add_definitions("-DUSE_QUEUE_OPERATIONS")
-endif ()
+# endif ()
 
 add_definitions("-DMAX_THREADS_POW2=512"
         "-DCPU_FREQ_GHZ=2.1"
@@ -116,14 +116,24 @@ foreach (DATA_STRUCTURE ${RAW_DATA_STRUCTURES})
     list(APPEND DATA_STRUCTURES ${DS})
 endforeach ()
 
+# Verlib
 include_directories(ds/verlib_structs/include)
+
+# NASL
+set(NASL_LOCKS_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/nasl-tools/locks/include")
+set(NASL_FIBERS_BENCH_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/nasl-tools/benchmarks/nasl-fibers-bench/include")
 
 find_package(Boost 1.66 REQUIRED COMPONENTS coroutine context fiber)
 
 foreach (DS ${DATA_STRUCTURES})
     message(DS_DIR= "${DS_DIR}/${DS}")
     set(DS_RUN ${DS}${RECLAIM})
-    add_executable(${DS_RUN} ${SOURCE_EXE})
+    if (${DS} MATCHES "stack_nasl_mcs")
+    # This DS needs yield.cpp compiled alongside main.cpp
+        add_executable(${DS_RUN} ${SOURCE_EXE} ${DS_DIR}/${DS}/yield.cpp)
+    else ()
+        add_executable(${DS_RUN} ${SOURCE_EXE})
+    endif ()
     target_include_directories(${DS_RUN} PRIVATE ${Boost_INCLUDE_DIRS})
     target_link_libraries(${DS_RUN} PRIVATE ${Boost_LIBRARIES})
     target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/${DS})
@@ -138,4 +148,13 @@ foreach (DS ${DATA_STRUCTURES})
         message(DS="${DS} || verlib type")
         target_include_directories(${DS_RUN} PUBLIC parlay)
     endif ()
+    if (${DS} MATCHES "stack_nasl_mcs")
+       message(DS="${DS} || nasl mcs fiber lock stack")
+       target_include_directories(${DS_RUN} PUBLIC ${NASL_LOCKS_INCLUDE_DIR})
+       target_include_directories(${DS_RUN} PUBLIC ${NASL_FIBERS_BENCH_INCLUDE_DIR})
+       target_compile_definitions(${DS_RUN} PRIVATE
+           NASL_NUMA_NODE_CNT_DEF=1
+           NASL_CORE_CNT_DEF=512
+       )
+   endif ()
 endforeach ()

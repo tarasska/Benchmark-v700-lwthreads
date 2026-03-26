@@ -3,7 +3,7 @@
         "numThreads": 1,
         "stopCondition": {
             "ClassName": "OperationCounter",
-            "commonOperationLimit": 1024
+            "commonOperationLimit": 1024000
         },
         "threadLoopBuilders": [
             {
@@ -25,7 +25,7 @@
             }
         ]
     },
-    "range": 2048,
+    "range": 2048000,
     "test": {
         "numThreads": 8,
         "stopCondition": {
@@ -51,10 +51,10 @@
                     },
                     "parameters": {
                         "insertRatio": 0.1,
-                        "removeRatio": 0.0,
+                        "removeRatio": 0.1,
                         "rqRatio": 0.0,
                         "popRatio": 0.1,
-                        "pushRatio": 0.1
+                        "pushRatio": 0.3
                     }
                 }
             }

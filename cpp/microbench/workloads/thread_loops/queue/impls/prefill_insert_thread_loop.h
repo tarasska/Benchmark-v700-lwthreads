@@ -41,11 +41,11 @@ public:
             ++counter;
         } while (value != (K*)this->NO_VALUE && counter < number_of_attempts_);
 
-        if (value != (K*)this->NO_VALUE) {
-            std::cerr << "WARNING: PrefillInsertThreadLoop with threadId=" << threadId
-                      << " have not inserted a new key. Number of attempts is: "
-                      << number_of_attempts_ << "\n";
-        }
+        // if (value != (K*)this->NO_VALUE) {
+        //     std::cerr << "WARNING: PrefillInsertThreadLoop with threadId=" << threadId
+        //               << " have not inserted a new key. Number of attempts is: "
+        //               << number_of_attempts_ << "\n";
+        // }
     }
 };
 
