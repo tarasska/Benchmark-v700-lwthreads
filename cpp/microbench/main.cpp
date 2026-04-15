@@ -208,25 +208,32 @@ Statistic get_statistic(int64_t elapsed_millis) {
 
 #define RUN_COROUTINES true
 
+#include <boost/fiber/all.hpp>
+#include <vector>
+
+static int g_num_os_threads    = 16;   // number of OS threads
+static int g_fibers_per_thread = 16;  // fibers inside each OS thread
+
+
 void execute(globals_t* g, Parameters* parameters) {
-    std::thread** threads = new std::thread*[MAX_THREADS_POW2];
+    std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
-    #ifndef RUN_COROUTINES
-    std::cout << "binding threads...\n";
-    binding_setCustom(parameters->get_pin());
-    bind_threads(parameters->get_num_threads());
+    const int coef = 256;
+    const int total_fibers = parameters->get_num_threads();
+    g_num_os_threads = parameters->get_num_threads() / coef;
+    const int num_os_threads    = g_num_os_threads;
+    // const int fibers_per_thread = (num_os_threads > 0)
+    //                                  ? (total_fibers / num_os_threads)
+    //                                  : total_fibers;
+    const int fibers_per_thread = coef;
 
-    std::cout << "creating threads...\n";
-    for (int i = 0; i < parameters->get_num_threads(); ++i) {
-        threads[i] = new std::thread(&ThreadLoop::run, thread_loops[i]);
-    }
 
-    while (g->running < parameters->get_num_threads()) {
-        TRACE COUTATOMIC("main thread: waiting for threads to START running=" << g->running
-                                                                              << std::endl);
-    }  // wait for all threads to be ready
-    #endif
-    ////////////////////////////////////
+   std::cout << "execute: total_fibers=" << total_fibers
+             << " num_os_threads=" << num_os_threads
+             << " fibers_per_thread=" << fibers_per_thread << "\n";
+
+
+   ////////////////////////////////////
 
     SOFTWARE_BARRIER;
     g->startTime = std::chrono::high_resolution_clock::now();
@@ -239,26 +246,59 @@ void execute(globals_t* g, Parameters* parameters) {
 
     #ifdef RUN_COROUTINES
     parameters->stopCondition->start(parameters->get_num_threads());
-    g->start = true;
-    SOFTWARE_BARRIER;
-    std::cout << "initing fibers...\n";
-    #include <boost/fiber/all.hpp>
-    #include <vector>
-    boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
-    const int num_fibers = parameters->get_num_threads();
-    std::vector<boost::fibers::fiber> fibers(num_fibers);
-    for (int i = 0; i < num_fibers; ++i) {
-        fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
-    }
-    std::cout << "done initiating...\n";
-    for (int i = 0; i < parameters->get_num_threads(); ++i) {
-        fibers[i].join();
-    }
-    std::cout << "finished\n";
-    #else
-    for (size_t i = 0; i < parameters->get_num_threads(); ++i) {
-        threads[i]->join();
-    }
+   g->start = true;
+   __sync_synchronize();
+   SOFTWARE_BARRIER;
+
+
+   if (num_os_threads <= 1) {
+    // SINGLE OS THREAD
+       std::cout << "initing fibers (single-thread mode)...\n";
+       boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
+       std::vector<boost::fibers::fiber> fibers(parameters->get_num_threads());
+       for (int i = 0; i < parameters->get_num_threads(); ++i) {
+           fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
+       }
+       std::cout << "done initiating...\n";
+       for (int i = 0; i < parameters->get_num_threads(); ++i) {
+           fibers[i].join();
+       }
+       std::cout << "finished (single-thread mode)\n";
+   } else {
+    // MULTI OS THREAD
+       std::cout << "initing " << num_os_threads << " OS threads × "
+                 << fibers_per_thread << " fibers each...\n";
+
+
+       auto thread_func = [&](int os_thread_id) {
+           boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
+
+
+           int fiber_base = os_thread_id * fibers_per_thread;
+           int fiber_end  = std::min(fiber_base + fibers_per_thread, total_fibers);
+           int local_count = fiber_end - fiber_base;
+
+
+           std::vector<boost::fibers::fiber> fibers(local_count);
+           for (int f = 0; f < local_count; ++f) {
+               int global_tid = fiber_base + f;
+               fibers[f] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[global_tid]);
+           }
+           for (int f = 0; f < local_count; ++f) {
+               fibers[f].join();
+           }
+       };
+
+
+       std::vector<std::thread> os_threads(num_os_threads);
+       for (int t = 0; t < num_os_threads; ++t) {
+           os_threads[t] = std::thread(thread_func, t);
+       }
+       for (int t = 0; t < num_os_threads; ++t) {
+           os_threads[t].join();
+       }
+       std::cout << "finished (multi-thread mode)\n";
+   }
     #endif
 
     SOFTWARE_BARRIER;

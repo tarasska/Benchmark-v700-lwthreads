@@ -30,7 +30,7 @@ namespace microbench::workload::queue {
     DURATION_START(tid);
 
 #define THREAD_MEASURED_POST                                                       \
-    //__sync_fetch_and_add(&this->g->running, -1);                                   \
+    __sync_fetch_and_add(&this->g->running, -1);                                   \
     DURATION_END(tid, duration_all_ops);                                           \
     GSTATS_SET(tid, time_thread_terminate,                                         \
                std::chrono::duration_cast<std::chrono::microseconds>(              \
@@ -39,13 +39,13 @@ namespace microbench::workload::queue {
     SOFTWARE_BARRIER;                                                              \
     papi_stop_counters(tid);                                                       \
     SOFTWARE_BARRIER;                                                              \
-    while (this->g->running) {                                                     \
-        SOFTWARE_BARRIER;                                                          \
-    }                                                                              \
-    this->g->dsAdapter->deinitThread(tid);                                         \
-    __RCU_DEINIT_THREAD;                                                           \
-    __RLU_DEINIT_THREAD;                                                           \
-    this->g->garbage += garbage;
+    // while (this->g->running) {                                                     \
+    //     SOFTWARE_BARRIER;                                                          \
+    // }                                                                              \
+    // this->g->dsAdapter->deinitThread(tid);                                         \
+    // __RCU_DEINIT_THREAD;                                                           \
+    // __RLU_DEINIT_THREAD;                                                           \
+    // this->g->garbage += garbage;
 
 
 template <typename K>
