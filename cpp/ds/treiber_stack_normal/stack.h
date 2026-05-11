@@ -92,53 +92,43 @@ struct alignas(CACHE_LINE_SIZE) mstack
 
     unique_ptr<K> push(const int tid, skey_t key) {
         mstack_node<K>* new_node = new mstack_node<K>(key);
-        tagged_ptr<mstack_node<K>> expected = top.load(std::memory_order_relaxed);
-        int tries = 0;
-        while (true) {
-            new_node->next = expected.ptr;
-            tagged_ptr<mstack_node<K>> desired(new_node, expected.tag + 1);
-            if (top.compare_exchange_weak(
-                    expected,
-                    desired,
-                    std::memory_order_release,
-                    std::memory_order_relaxed)) {
-                break;
-            }
-            tries++;
-            if (tries < SPIN_THRESHOLD) {
-                spin(f(tries));
-            } else {
-                boost::this_fiber::yield();
-            }
-        }
+        mstack_node<K>* expected = top.load(memory_order_relaxed);
+        
+        do {
+            new_node->next = expected;
+            boost::this_fiber::yield();
+        } while (!top.compare_exchange_weak(
+            expected, 
+            new_node,
+            memory_order_release,
+            memory_order_relaxed
+        ));
+        
         return std::make_unique<K>(key);
     }
 
     unique_ptr<K> pop(const int tid) {
-        tagged_ptr<mstack_node<K>> expected = top.load(std::memory_order_acquire);
-        int tries = 0;
-        while (true) {
-            if (expected.ptr == nullptr) {
+        // int tries = 0;
+        // mstack_node<K>* expected = top.load(memory_order_acquire);
+        // mstack_node<K>* new_top;
+        
+        do {
+            if (expected == nullptr) {
                 return nullptr;
             }
-            mstack_node<K>* new_top = expected.ptr->next;
-            tagged_ptr<mstack_node<K>> desired(new_top, expected.tag + 1);
-            if (top.compare_exchange_weak(
-                    expected,
-                    desired,
-                    std::memory_order_release,
-                    std::memory_order_acquire)) {
-                K result = expected.ptr->key;
-                delete expected.ptr;
-                return std::make_unique<K>(result);
-            }
-            tries++;
-            if (tries < SPIN_THRESHOLD) {
-                spin(f(tries));
-            } else {
-                boost::this_fiber::yield();
-            }
-        }
+            // new_top = expected->next.load(memory_order_relaxed);
+            new_top = expected->next;
+
+            boost::this_fiber::yield();
+        } while (!top.compare_exchange_weak(
+            expected,
+            new_top,
+            memory_order_release,
+            memory_order_acquire));
+        
+        auto result = expected->key;
+        delete expected;
+        return std::make_unique<K>(result);
     }
 
     bool empty() const {
