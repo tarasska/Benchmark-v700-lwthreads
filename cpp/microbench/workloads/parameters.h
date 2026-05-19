@@ -22,10 +22,12 @@ namespace microbench::workload {
 struct ThreadLoopSettings {
     ThreadLoopBuilder* threadLoopBuilder;
     size_t quantity;
+    size_t coroutines;
     std::string pinPattern;
 
     explicit ThreadLoopSettings(const nlohmann::json& j) {
         quantity = j["quantity"];
+        coroutines = j["coroutines"];
         if (j.contains("pin")) {
             pinPattern = j["pin"].get<std::string>();
         } else {
@@ -73,17 +75,19 @@ void to_json(nlohmann::json& j, const ThreadLoopSettings& s) {
 
 void from_json(const nlohmann::json& j, ThreadLoopSettings& s) {
     s.quantity = j["quantity"];
+    s.coroutines = j["coroutines"];
     s.pinPattern = "";
     if (j.contains("pin")) {
         s.pinPattern = j["pin"].get<std::string>();
     } else {
-        s.pinPattern = "~" + std::to_string(s.quantity);
+        s.pinPattern = "~" + std::to_string(s.coroutines);
     }
     s.threadLoopBuilder = get_thread_loop_from_json(j["threadLoopBuilder"]);
 }
 
 class Parameters {
     size_t num_threads_;
+    size_t num_os_threads_;
     std::vector<int> pin_;
 
 public:
@@ -126,7 +130,7 @@ public:
 
     //    Parameters() : numThreads(0), stopCondition(nullptr) {}
     Parameters()
-        : num_threads_(0),
+        : num_threads_(0), num_os_threads_(0),
           stopCondition(new Timer(5000)) {
     }
 
@@ -134,6 +138,10 @@ public:
 
     size_t get_num_threads() const {
         return num_threads_;
+    }
+
+    size_t get_num_os_threads() const {
+        return num_os_threads_;
     }
 
     const std::vector<int>& get_pin() const {
@@ -153,11 +161,12 @@ public:
 
     Parameters* add_thread_loop_builder(ThreadLoopSettings* thread_loop_settings) {
         threadLoopBuilders.push_back(thread_loop_settings);
-        num_threads_ += thread_loop_settings->quantity;
+        num_threads_ += thread_loop_settings->coroutines;
+        num_os_threads_ += thread_loop_settings->quantity;
         if ((thread_loop_settings != nullptr) && !thread_loop_settings->pinPattern.empty()) {
             std::vector<int> cur_pin;
             parse_binding(thread_loop_settings->pinPattern, cur_pin);
-            for (size_t i = 0; i < thread_loop_settings->quantity; ++i) {
+            for (size_t i = 0; i < thread_loop_settings->coroutines; ++i) {
                 pin_.push_back(cur_pin[i % cur_pin.size()]);
             }
         } else {
@@ -188,7 +197,7 @@ public:
         ThreadLoop** workload = new ThreadLoop*[this->num_threads_];
         for (size_t thread_id = 0, i = 0, cur_quantity = 0; thread_id < this->num_threads_;
              ++thread_id, ++cur_quantity) {
-            if (cur_quantity >= threadLoopBuilders[i]->quantity) {
+            if (cur_quantity >= threadLoopBuilders[i]->coroutines) {
                 cur_quantity = 0;
                 ++i;
             }
@@ -209,7 +218,6 @@ public:
 
     void from_json(const nlohmann::json& j) {
         stopCondition = get_stop_condition_from_json(j["stopCondition"]);
-
         if (j.contains("threadLoopBuilders")) {
             for (const auto& i : j["threadLoopBuilders"]) {
                 add_thread_loop_builder(new ThreadLoopSettings(i));

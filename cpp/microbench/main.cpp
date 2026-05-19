@@ -211,22 +211,18 @@ Statistic get_statistic(int64_t elapsed_millis) {
 #include <boost/fiber/all.hpp>
 #include <vector>
 
-static int g_num_os_threads    = 16;   // number of OS threads
-static int g_fibers_per_thread = 16;  // fibers inside each OS thread
-
-
 void execute(globals_t* g, Parameters* parameters) {
     std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
-    const int coef = 256;
     const int total_fibers = parameters->get_num_threads();
-    g_num_os_threads = parameters->get_num_threads() / coef;
+    const int g_num_os_threads = parameters->get_num_os_threads();
     const int num_os_threads    = g_num_os_threads;
     // const int fibers_per_thread = (num_os_threads > 0)
     //                                  ? (total_fibers / num_os_threads)
     //                                  : total_fibers;
-    const int fibers_per_thread = coef;
-
+    const int fibers_per_thread = (num_os_threads > 1)
+                                    ? (total_fibers / num_os_threads)
+                                    : total_fibers;
 
    std::cout << "execute: total_fibers=" << total_fibers
              << " num_os_threads=" << num_os_threads
