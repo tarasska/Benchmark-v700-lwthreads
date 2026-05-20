@@ -1,28 +1,6 @@
 /*
 *   Updated Treiber stack from ASCYLIB.
 *
-*   Fixed: ABA / use-after-free via Epoch-Based Reclamation (EBR, "Variant C"
-*   from plan.md). A self-contained EBR is implemented in this header so we
-*   do not need to thread reclaimer_debra<...> initialization through the
-*   benchmark harness.
-*
-*   Key idea:
-*     - Each operation is wrapped in enter()/exit(): the calling thread
-*       publishes the current global epoch.
-*     - pop() does NOT free the unlinked node directly. It is appended to
-*       a per-thread retire list, bucketed by current epoch.
-*     - Periodically a thread tries to advance the global epoch. Advance
-*       succeeds only if every active thread has already announced the
-*       current epoch -> nodes retired two epochs ago are guaranteed to
-*       have no live references and can be safely deleted.
-*
-*   Fiber-safety:
-*     Multiple boost::fibers run on a single OS thread. Two fibers on the
-*     same thread can be inside a critical section simultaneously (one
-*     yields to the other from within push()/pop()). We therefore keep a
-*     reentrant active counter per thread instead of a flag, so the local
-*     epoch announcement is held until the OUTERMOST fiber on that thread
-*     leaves the critical section.
 */
 #pragma once
 
@@ -58,18 +36,10 @@ struct mstack_node
 //  Epoch-Based Reclamation (EBR)
 // ---------------------------------------------------------------------------
 
-
-// Maximum number of OS threads that can use the stack concurrently. Must be
-// >= the benchmark's MAX_THREADS_POW2 / TOTAL_THREADS. 256 is plenty for the
-// 4-thread x 128-fiber workload mentioned in plan.md.
 #ifndef EBR_MAX_THREADS
 #define EBR_MAX_THREADS 256
 #endif
 
-
-// Number of retires per thread that triggers an attempt to advance the
-// global epoch. A small value keeps memory usage low; a large value reduces
-// the cost of scanning.
 #ifndef EBR_RETIRE_THRESHOLD
 #define EBR_RETIRE_THRESHOLD 64
 #endif
@@ -79,7 +49,6 @@ template <typename Node>
 class EBRManager {
 private:
    struct alignas(CACHE_LINE_SIZE) ThreadState {
-       // Announced epoch of this thread; 0 means "quiescent / not in CS".
        std::atomic<uint64_t> local_epoch{0};
        // Number of nested critical-section entries on this thread. Needed
        // because multiple fibers on the same OS thread can be in the CS at
