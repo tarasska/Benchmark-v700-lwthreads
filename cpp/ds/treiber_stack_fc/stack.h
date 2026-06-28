@@ -125,7 +125,7 @@ public:
        if (req.result_valid) {
            return new K(result_storage);
        }
-       return K{};
+       return nullptr;
    }
 
    unique_ptr<K> push(const int tid, skey_t key) {

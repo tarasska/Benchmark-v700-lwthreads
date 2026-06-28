@@ -67,7 +67,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
             curr = curr->next;
             boost::this_fiber::yield();
         }
-        return K{};
+        return nullptr;
     }
 
     unique_ptr<K> push(const int tid, skey_t key) {

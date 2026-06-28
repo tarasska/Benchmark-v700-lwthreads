@@ -138,7 +138,7 @@ public:
 
 
        lock_.unlock(ctx_[tid]);
-       return K{};
+       return nullptr;
    }
 
 

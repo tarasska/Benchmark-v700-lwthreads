@@ -66,11 +66,22 @@ if (SKIP_VALIDATION)
 endif ()
 
 # if (USE_STACK_OPERATIONS)
-    add_definitions("-DUSE_STACK_OPERATIONS")
+    # add_definitions("-DUSE_STACK_OPERATIONS")
 # endif ()
 # if (USE_QUEUE_OPERATIONS)
-    add_definitions("-DUSE_QUEUE_OPERATIONS")
+    # add_definitions("-DUSE_QUEUE_OPERATIONS")
 # endif ()
+set(QUEUE_DS
+    treiber_stack
+    treiber_stack_fast
+    #treiber_stack_normal
+    treiber_stack_ebr
+    treiber_stack_fc
+    #treiber_stack_ofc    # add yours here
+    michael-scott-queue-lf
+    michael-scott-queue-fc
+    stack_nasl_mcs
+)
 
 add_definitions("-DMAX_THREADS_POW2=512"
         "-DCPU_FREQ_GHZ=2.1"
@@ -120,12 +131,42 @@ endforeach ()
 include_directories(ds/verlib_structs/include)
 
 # NASL
-set(NASL_LOCKS_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/nasl-tools/locks/include")
-set(NASL_FIBERS_BENCH_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/nasl-tools/benchmarks/nasl-fibers-bench/include")
+# ── Boost ─────────────────────────────────────────────────────────────────────
+if (BOOST_ROOT)
+    message(STATUS "Boost: using custom path: ${BOOST_ROOT}")
+    set(Boost_NO_SYSTEM_PATHS ON)
+endif ()
+find_package(Boost REQUIRED COMPONENTS fiber)
+message(STATUS "Boost: found ${Boost_VERSION} at ${Boost_INCLUDE_DIRS}")
 
-find_package(Boost 1.66 REQUIRED COMPONENTS coroutine context fiber)
+# ── NASL ──────────────────────────────────────────────────────────────────────
+if (NASL_ROOT)
+    message(STATUS "NASL: using local path: ${NASL_ROOT}")
+    set(NASL_LOCKS_INCLUDE_DIR        "${NASL_ROOT}/locks/include")
+    set(NASL_FIBERS_BENCH_INCLUDE_DIR "${NASL_ROOT}/benchmarks/nasl-fibers-bench/include")
+    foreach (_nasl_dir ${NASL_LOCKS_INCLUDE_DIR} ${NASL_FIBERS_BENCH_INCLUDE_DIR})
+        if (NOT EXISTS "${_nasl_dir}")
+            message(FATAL_ERROR "NASL: directory not found: ${_nasl_dir}\n"
+                                "Check that NASL_ROOT points at the root of nasl-tools.")
+        endif ()
+    endforeach ()
+else ()
+    message(STATUS "NASL: NASL_ROOT not set — fetching from GitHub")
+    include(FetchContent)
+    FetchContent_Declare(
+        nasl_tools
+        GIT_REPOSITORY https://github.com/ITMO-PTDC-Team/nasl-tools.git
+        GIT_TAG        main
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(nasl_tools)
+    set(NASL_LOCKS_INCLUDE_DIR        "${nasl_tools_SOURCE_DIR}/locks/include")
+    set(NASL_FIBERS_BENCH_INCLUDE_DIR "${nasl_tools_SOURCE_DIR}/benchmarks/nasl-fibers-bench/include")
+endif ()
+message(STATUS "NASL locks  : ${NASL_LOCKS_INCLUDE_DIR}")
+message(STATUS "NASL fibers : ${NASL_FIBERS_BENCH_INCLUDE_DIR}")
 
-foreach (DS ${DATA_STRUCTURES})
+foreach (DS ${QUEUE_DS})
     message(DS_DIR= "${DS_DIR}/${DS}")
     set(DS_RUN ${DS}${RECLAIM})
     if (${DS} MATCHES "stack_nasl_mcs")
@@ -158,4 +199,7 @@ foreach (DS ${DATA_STRUCTURES})
            NASL_CORE_CNT_DEF=512
        )
    endif ()
+   if (${DS} IN_LIST QUEUE_DS)
+        target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS)
+   endif()
 endforeach ()
