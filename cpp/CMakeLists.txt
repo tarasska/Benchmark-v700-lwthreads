@@ -72,14 +72,10 @@ endif ()
     # add_definitions("-DUSE_QUEUE_OPERATIONS")
 # endif ()
 set(QUEUE_DS
+    treiber_stack_fc_sleep
     treiber_stack
     treiber_stack_fast
-    #treiber_stack_normal
-    treiber_stack_ebr
     treiber_stack_fc
-    #treiber_stack_ofc    # add yours here
-    michael-scott-queue-lf
-    michael-scott-queue-fc
     stack_nasl_mcs
 )
 
@@ -144,6 +140,7 @@ if (NASL_ROOT)
     message(STATUS "NASL: using local path: ${NASL_ROOT}")
     set(NASL_LOCKS_INCLUDE_DIR        "${NASL_ROOT}/locks/include")
     set(NASL_FIBERS_BENCH_INCLUDE_DIR "${NASL_ROOT}/benchmarks/nasl-fibers-bench/include")
+
     foreach (_nasl_dir ${NASL_LOCKS_INCLUDE_DIR} ${NASL_FIBERS_BENCH_INCLUDE_DIR})
         if (NOT EXISTS "${_nasl_dir}")
             message(FATAL_ERROR "NASL: directory not found: ${_nasl_dir}\n"
@@ -166,15 +163,18 @@ endif ()
 message(STATUS "NASL locks  : ${NASL_LOCKS_INCLUDE_DIR}")
 message(STATUS "NASL fibers : ${NASL_FIBERS_BENCH_INCLUDE_DIR}")
 
+add_subdirectory(${NASL_LOCKS_INCLUDE_DIR}/.. nasl)
+
 foreach (DS ${QUEUE_DS})
     message(DS_DIR= "${DS_DIR}/${DS}")
     set(DS_RUN ${DS}${RECLAIM})
-    if (${DS} MATCHES "stack_nasl_mcs")
-    # This DS needs yield.cpp compiled alongside main.cpp
-        add_executable(${DS_RUN} ${SOURCE_EXE} ${DS_DIR}/${DS}/yield.cpp)
-    else ()
-        add_executable(${DS_RUN} ${SOURCE_EXE})
-    endif ()
+    # if (${DS} MATCHES "stack_nasl_mcs" OR ${DS} MATCHES "treiber_stack_fc_sleep")
+    #     # This DS needs yield.cpp compiled alongside main.cpp
+    #     add_executable(${DS_RUN} ${SOURCE_EXE} ${DS_DIR}/${DS}/yield.cpp)
+    # else ()
+    add_executable(${DS_RUN} ${SOURCE_EXE} ${DS_DIR}/nasl_boost_fibers/yield.cpp)
+    target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/nasl_boost_fibers)
+    # endif ()
     target_include_directories(${DS_RUN} PRIVATE ${Boost_INCLUDE_DIRS})
     target_link_libraries(${DS_RUN} PRIVATE ${Boost_LIBRARIES})
     target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/${DS})
@@ -190,16 +190,18 @@ foreach (DS ${QUEUE_DS})
         message(DS="${DS} || verlib type")
         target_include_directories(${DS_RUN} PUBLIC parlay)
     endif ()
-    if (${DS} MATCHES "stack_nasl_mcs")
-       message(DS="${DS} || nasl mcs fiber lock stack")
-       target_include_directories(${DS_RUN} PUBLIC ${NASL_LOCKS_INCLUDE_DIR})
-       target_include_directories(${DS_RUN} PUBLIC ${NASL_FIBERS_BENCH_INCLUDE_DIR})
-       target_compile_definitions(${DS_RUN} PRIVATE
-           NASL_NUMA_NODE_CNT_DEF=1
-           NASL_CORE_CNT_DEF=512
-       )
-   endif ()
-   if (${DS} IN_LIST QUEUE_DS)
-        target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS)
-   endif()
+#     if (${DS} MATCHES "stack_nasl_mcs")
+#        message(DS="${DS} || nasl mcs fiber lock stack")
+#        target_include_directories(${DS_RUN} PUBLIC ${NASL_LOCKS_INCLUDE_DIR})
+#        target_include_directories(${DS_RUN} PUBLIC ${NASL_FIBERS_BENCH_INCLUDE_DIR})
+#     #    target_compile_definitions(${DS_RUN} PRIVATE
+#     #        NASL_NUMA_NODE_CNT_DEF=1
+#     #        NASL_CORE_CNT_DEF=512
+#     #    )
+#    endif ()
+    # target_include_directories(${DS_RUN} PUBLIC ${NASL_LOCKS_INCLUDE_DIR})
+    # target_include_directories(${DS_RUN} PUBLIC ${NASL_FIBERS_BENCH_INCLUDE_DIR})
+    target_link_libraries(${DS_RUN} PUBLIC nasl)
+    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS)
+
 endforeach ()

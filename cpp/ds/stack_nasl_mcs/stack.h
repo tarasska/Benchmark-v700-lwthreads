@@ -38,11 +38,7 @@
 #include <nasl/lock/mutex_wrapper.hpp>
 #include <nasl/util/statefull_backoff.hpp>
 
-
-// We include the fiber Suspendable specialization because McsLock::unlock()
-// calls Suspendable<DefaultSuspendData>::resume().  With DefaultBackoffPolicy,
-// suspend() is never called, so resume() is always a no-op (safe across threads).
-#include <nasl/benchmark/fibers/lock/suspendable.hpp>
+#include "../nasl_boost_fibers/suspendable.hpp"
 
 
 #include <boost/fiber/all.hpp>

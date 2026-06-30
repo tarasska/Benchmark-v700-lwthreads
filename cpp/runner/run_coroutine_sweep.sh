@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 BUILD_DIR="build"
-DS_LIST="treiber_stack_fc treiber_stack_fast treiber_stack stack_nasl_mcs"
+DS_LIST="treiber_stack_fc_sleep treiber_stack_fc treiber_stack_fast treiber_stack stack_nasl_mcs"
 RECLAIM="debra"
 COROUTINES="1 2 4 8 16 32 64"
 THREADS=4
