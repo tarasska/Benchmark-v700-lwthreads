@@ -267,7 +267,7 @@ void execute(globals_t* g, Parameters* parameters) {
 
 
        auto thread_func = [&](int os_thread_id) {
-           boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
+           boost::fibers::use_scheduling_algorithm<boost::fibers::algo::work_stealing>(num_os_threads);
 
 
            int fiber_base = os_thread_id * fibers_per_thread;

@@ -51,4 +51,5 @@ cpp/common/papi/a.out
 ../.idea/
 cpp/.vscode/
 runner/sweep_results
+build
 

@@ -79,7 +79,7 @@ set(QUEUE_DS
     stack_nasl_mcs
 )
 
-add_definitions("-DMAX_THREADS_POW2=512"
+add_definitions("-DMAX_THREADS_POW2=8192"
         "-DCPU_FREQ_GHZ=2.1"
         "-DMEMORY_STATS=if\(1\)"
         "-DMEMORY_STATS2=if\(0\)"
@@ -168,18 +168,19 @@ add_subdirectory(${NASL_LOCKS_INCLUDE_DIR}/.. nasl)
 foreach (DS ${QUEUE_DS})
     message(DS_DIR= "${DS_DIR}/${DS}")
     set(DS_RUN ${DS}${RECLAIM})
-    # if (${DS} MATCHES "stack_nasl_mcs" OR ${DS} MATCHES "treiber_stack_fc_sleep")
-    #     # This DS needs yield.cpp compiled alongside main.cpp
-    #     add_executable(${DS_RUN} ${SOURCE_EXE} ${DS_DIR}/${DS}/yield.cpp)
-    # else ()
-    add_executable(${DS_RUN} ${SOURCE_EXE} ${DS_DIR}/nasl_boost_fibers/yield.cpp)
-    target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/nasl_boost_fibers)
-    # endif ()
+
+    add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl_boost_fibers/yield.cpp)
+    #target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/nasl_boost_fibers)
+
     target_include_directories(${DS_RUN} PRIVATE ${Boost_INCLUDE_DIRS})
     target_link_libraries(${DS_RUN} PRIVATE ${Boost_LIBRARIES})
     target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/${DS})
     target_link_libraries(${DS_RUN} PUBLIC ${CXX_LIBS_LIST})
     target_link_libraries(${DS_RUN} PUBLIC "-latomic")
+
+    target_link_libraries(${DS_RUN} PUBLIC nasl)
+    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS)
+
     if (${DS} MATCHES "dragfly.*")
         add_subdirectory(dragonfly_table)
         message(DS="${DS} || dragfly type")
@@ -190,18 +191,4 @@ foreach (DS ${QUEUE_DS})
         message(DS="${DS} || verlib type")
         target_include_directories(${DS_RUN} PUBLIC parlay)
     endif ()
-#     if (${DS} MATCHES "stack_nasl_mcs")
-#        message(DS="${DS} || nasl mcs fiber lock stack")
-#        target_include_directories(${DS_RUN} PUBLIC ${NASL_LOCKS_INCLUDE_DIR})
-#        target_include_directories(${DS_RUN} PUBLIC ${NASL_FIBERS_BENCH_INCLUDE_DIR})
-#     #    target_compile_definitions(${DS_RUN} PRIVATE
-#     #        NASL_NUMA_NODE_CNT_DEF=1
-#     #        NASL_CORE_CNT_DEF=512
-#     #    )
-#    endif ()
-    # target_include_directories(${DS_RUN} PUBLIC ${NASL_LOCKS_INCLUDE_DIR})
-    # target_include_directories(${DS_RUN} PUBLIC ${NASL_FIBERS_BENCH_INCLUDE_DIR})
-    target_link_libraries(${DS_RUN} PUBLIC nasl)
-    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS)
-
 endforeach ()
