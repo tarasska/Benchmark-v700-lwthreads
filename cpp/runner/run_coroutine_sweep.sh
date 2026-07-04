@@ -21,6 +21,7 @@ DS_LIST="treiber_stack_fc_sleep treiber_stack_fc treiber_stack_fast treiber_stac
 RECLAIM="debra"
 COROUTINES="1 2 4 8 16 32 64"
 THREADS=4
+REPEATS=5
 TIME_MS=10000
 RANGE=2048
 PREFILL_OPS=1024
@@ -34,6 +35,7 @@ LIB_DIR="../lib"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --build-dir)   BUILD_DIR="$2";   shift 2 ;;
+    --repeats)     REPEATS="$2";     shift 2 ;;
     --ds)          DS_LIST="$2";     shift 2 ;;
     --reclaim)     RECLAIM="$2";     shift 2 ;;
     --coroutines)  COROUTINES="$2";  shift 2 ;;
@@ -158,39 +160,39 @@ done
 echo "Starting sweep: [$(echo $DS_LIST | tr ' ' ', ')] × coroutines=[$(echo $COROUTINES | tr ' ' ', ')]"
 echo "Threads: $THREADS  |  Time: ${TIME_MS}ms  |  push=$PUSH_RATIO pop=$POP_RATIO"
 echo ""
+for ITER in $(seq 1 $REPEATS); do
+    for DS in $DS_LIST; do
+        DS_OUT="$OUTPUT_DIR/v$ITER/$DS"
+        mkdir -p "$DS_OUT"
+        echo "── $DS ──────────────────────────────────────"
+        BINARY="$BIN_DIR/${DS}.${RECLAIM}"
 
-for DS in $DS_LIST; do
-  DS_OUT="$OUTPUT_DIR/$DS"
-  mkdir -p "$DS_OUT"
-  echo "── $DS ──────────────────────────────────────"
-  BINARY="$BIN_DIR/${DS}.${RECLAIM}"
+        for COPS in $COROUTINES; do
+            CONFIG_FILE="$CONFIG_DIR/config_cops${COPS}.json"
+            RESULT_FILE="$DS_OUT/result_cops${COPS}.json"
 
-  for COPS in $COROUTINES; do
-    CONFIG_FILE="$CONFIG_DIR/config_cops${COPS}.json"
-    RESULT_FILE="$DS_OUT/result_cops${COPS}.json"
+            echo -n "  coroutines=$COPS ... "
 
-    echo -n "  coroutines=$COPS ... "
+            set +e
+            LD_PRELOAD="${LIB_DIR}/${ALLOCATOR}.so" \
+                "$BINARY" \
+                -json-file "$CONFIG_FILE" \
+                -result-file "$RESULT_FILE" \
+                2>/dev/null
+            EXIT_CODE=$?
+            set -e
 
-    set +e
-    LD_PRELOAD="${LIB_DIR}/${ALLOCATOR}.so" \
-      "$BINARY" \
-      -json-file "$CONFIG_FILE" \
-      -result-file "$RESULT_FILE" \
-      2>/dev/null
-    EXIT_CODE=$?
-    set -e
+            if [[ $EXIT_CODE -ne 0 ]]; then
+                echo "FAILED (exit $EXIT_CODE)"
+                continue
+            fi
 
-    if [[ $EXIT_CODE -ne 0 ]]; then
-      echo "FAILED (exit $EXIT_CODE)"
-      continue
-    fi
+            if [[ ! -f "$RESULT_FILE" ]]; then
+                echo "FAILED (no result file)"
+                continue
+            fi
 
-    if [[ ! -f "$RESULT_FILE" ]]; then
-      echo "FAILED (no result file)"
-      continue
-    fi
-
-    python3 - <<PYEOF
+            python3 - <<PYEOF
 import json
 with open("$RESULT_FILE") as f:
     d = json.load(f)
@@ -201,10 +203,10 @@ pushes = d.get("sum_num_pushes_total", 0)
 pops   = d.get("sum_num_pops_total", 0)
 print(f"throughput={tput:>10.0f} ops/s   pushes={pushes}  pops={pops}")
 PYEOF
-  done
-  echo ""
+        done
+    echo ""
+    done
 done
-
 echo "All results saved to: $OUTPUT_DIR/"
 echo ""
 echo "Plot with:"
