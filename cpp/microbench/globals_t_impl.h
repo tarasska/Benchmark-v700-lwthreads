@@ -57,7 +57,7 @@ struct globals_t {
     PAD;
     workload::BenchParameters* benchParameters;
     PAD;
-    Random64 rngs[MAX_THREADS_POW2];  // create per-thread random number generators (padded to avoid
+    Random64 rngs[MAX_COROUTINES_POW2];  // create per-thread random number generators (padded to avoid
                                       // false sharing)
                                       //    PAD; // not needed because of padding at the end of rngs
     volatile bool start;
@@ -78,7 +78,7 @@ struct globals_t {
           benchParameters(bench_parameters) {
         debug_print = 0;
         srand(time(0));
-        for (int i = 0; i < MAX_THREADS_POW2; ++i) {
+        for (int i = 0; i < MAX_COROUTINES_POW2; ++i) {
             rngs[i].setSeed(rand());
         }
 

@@ -212,7 +212,7 @@ Statistic get_statistic(int64_t elapsed_millis) {
 #include <vector>
 
 void execute(globals_t* g, Parameters* parameters) {
-    std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
+    //std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
     const int total_fibers = parameters->get_num_threads();
     const int g_num_os_threads = parameters->get_num_os_threads();
@@ -355,7 +355,7 @@ void execute(globals_t* g, Parameters* parameters) {
         std::chrono::duration_cast<std::chrono::milliseconds>(g->endTime - g->startTime).count();
 
     parameters->stopCondition->clean();
-    delete[] threads;
+    //delete[] threads;
     delete[] thread_loops;
     binding_deinit();
 
@@ -364,6 +364,9 @@ void execute(globals_t* g, Parameters* parameters) {
 }
 
 void run(globals_t* g) {
+    #ifdef USE_STACK_OPERATIONS
+    std::cout << "STACK_OPSSSSSSSSSSSSSSSSSS" << std::endl;
+    #endif
     int total_threads = g->benchParameters->get_total_threads();
 
     using namespace std::chrono;

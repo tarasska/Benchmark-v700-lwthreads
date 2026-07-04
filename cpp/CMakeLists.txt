@@ -79,7 +79,8 @@ set(QUEUE_DS
     stack_nasl_mcs
 )
 
-add_definitions("-DMAX_THREADS_POW2=8192"
+add_definitions("-DMAX_THREADS_POW2=128"
+        "-DMAX_COROUTINES_POW2=8192"
         "-DCPU_FREQ_GHZ=2.1"
         "-DMEMORY_STATS=if\(1\)"
         "-DMEMORY_STATS2=if\(0\)"
