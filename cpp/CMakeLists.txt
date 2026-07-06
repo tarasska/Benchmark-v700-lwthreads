@@ -79,7 +79,7 @@ set(QUEUE_DS
     stack_nasl_mcs
 )
 
-add_definitions("-DMAX_THREADS_POW2=128"
+add_definitions("-DMAX_THREADS_POW2=2048"
         "-DMAX_COROUTINES_POW2=8192"
         "-DCPU_FREQ_GHZ=2.1"
         "-DMEMORY_STATS=if\(1\)"
@@ -89,7 +89,8 @@ add_definitions("-DMAX_THREADS_POW2=128"
         "-DDEBRA_ORIGINAL_FREE"
         "-DKEY_DEPTH_TOTAL_STAT"
         "-DKEY_SEARCH_TOTAL_STAT"
-        "-Wno-volatile")
+        "-Wno-volatile"
+        "-DUSE_COROUTINES")
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_LIST})
 message(CMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS})
@@ -133,7 +134,7 @@ if (BOOST_ROOT)
     message(STATUS "Boost: using custom path: ${BOOST_ROOT}")
     set(Boost_NO_SYSTEM_PATHS ON)
 endif ()
-find_package(Boost REQUIRED COMPONENTS fiber)
+find_package(Boost REQUIRED COMPONENTS fiber fiber_numa)
 message(STATUS "Boost: found ${Boost_VERSION} at ${Boost_INCLUDE_DIRS}")
 
 # ── NASL ──────────────────────────────────────────────────────────────────────

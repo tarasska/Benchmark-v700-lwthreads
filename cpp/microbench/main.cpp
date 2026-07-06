@@ -209,6 +209,7 @@ Statistic get_statistic(int64_t elapsed_millis) {
 #define RUN_COROUTINES true
 
 #include <boost/fiber/all.hpp>
+#include <boost/fiber/numa/all.hpp>
 #include <vector>
 
 void execute(globals_t* g, Parameters* parameters) {
@@ -240,7 +241,7 @@ void execute(globals_t* g, Parameters* parameters) {
     ___timeline_use = 1;
 #endif
 
-    #ifdef RUN_COROUTINES
+    #ifdef USE_COROUTINES
     parameters->stopCondition->start(parameters->get_num_threads());
    g->start = true;
    __sync_synchronize();
@@ -250,7 +251,7 @@ void execute(globals_t* g, Parameters* parameters) {
    if (num_os_threads <= 1) {
     // SINGLE OS THREAD
        std::cout << "initing fibers (single-thread mode)...\n";
-       boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
+       //boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
        std::vector<boost::fibers::fiber> fibers(parameters->get_num_threads());
        for (int i = 0; i < parameters->get_num_threads(); ++i) {
            fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
@@ -285,14 +286,22 @@ void execute(globals_t* g, Parameters* parameters) {
            }
        };
 
+        std::vector<boost::fibers::fiber> fibers(parameters->get_num_threads());
+        for (int i = 0; i < parameters->get_num_threads(); ++i) {
+            fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
+        }
+        std::cout << "done initiating...\n";
+        for (int i = 0; i < parameters->get_num_threads(); ++i) {
+            fibers[i].join();
+        }
 
-       std::vector<std::thread> os_threads(num_os_threads);
-       for (int t = 0; t < num_os_threads; ++t) {
-           os_threads[t] = std::thread(thread_func, t);
-       }
-       for (int t = 0; t < num_os_threads; ++t) {
-           os_threads[t].join();
-       }
+    //    std::vector<std::thread> os_threads(num_os_threads);
+    //    for (int t = 0; t < num_os_threads; ++t) {
+    //        os_threads[t] = std::thread(thread_func, t);
+    //    }
+    //    for (int t = 0; t < num_os_threads; ++t) {
+    //        os_threads[t].join();
+    //    }
        std::cout << "finished (multi-thread mode)\n";
    }
     #endif
@@ -363,14 +372,62 @@ void execute(globals_t* g, Parameters* parameters) {
     g->done = false;
 }
 
+
+static std::vector<std::thread> workers;
+static volatile bool keep_alive = true;
+static std::mutex mtx_count{};
+static boost::fibers::condition_variable_any worker_terminate_cv{};
+typedef std::unique_lock<std::mutex> lock_type;
+
+
+void print_thread() {
+    std::ostringstream buffer;
+    buffer << "thread started " << std::this_thread::get_id() << std::endl;
+    std::cout << buffer.str() << std::flush;    
+}
+
+void await_termintation() {
+    lock_type lk(mtx_count);
+    worker_terminate_cv.wait(lk, [](){ return !keep_alive; });
+}
+
+void init_work_stealing_thread(std::uint32_t thread_cnt, std::uint32_t cpu_id) {
+    print_thread();
+    boost::fibers::numa::pin_thread(cpu_id);
+    boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >(thread_cnt);
+    await_termintation();
+}
+
+void construct_work_stealing_workers(size_t fiber_workers_cnt) {
+    std::cout << "WORK STEALING SCHED WITH WORKERS=" << fiber_workers_cnt << std::endl;
+    boost::fibers::numa::pin_thread(0);
+    for (size_t i = 1; i < fiber_workers_cnt; ++i) {
+        workers.emplace_back(init_work_stealing_thread, fiber_workers_cnt, i);
+    }
+    boost::fibers::use_scheduling_algorithm<boost::fibers::algo::work_stealing>(fiber_workers_cnt);
+}
+
+void destruct_workers() {
+    keep_alive = false;
+    worker_terminate_cv.notify_all();
+    for (auto& t : workers) {
+        t.join();
+    }
+}
+
 void run(globals_t* g) {
-    #ifdef USE_STACK_OPERATIONS
-    std::cout << "STACK_OPSSSSSSSSSSSSSSSSSS" << std::endl;
-    #endif
     int total_threads = g->benchParameters->get_total_threads();
 
     using namespace std::chrono;
     papi_init_program(total_threads);
+
+    int max_os_threads = max({
+        g->benchParameters->prefill->get_num_os_threads(),
+        g->benchParameters->warmUp->get_num_os_threads(),
+        g->benchParameters->test->get_num_os_threads()
+    });
+    std::cout << "MAX OS THREADS = " << max_os_threads << std::endl;
+    construct_work_stealing_workers(max_os_threads);
 
 #ifdef KEY_DEPTH_TOTAL_STAT
     key_depth_total_sum__ = 0;
@@ -817,6 +874,6 @@ int main(int argc, char** argv) {
         GSTATS_JSON(json);
         write_json_file(result_statistic_file_name, json);
     }
-
+    destruct_workers();
     printUptimeStampForPERF("MAIN_END");
 }

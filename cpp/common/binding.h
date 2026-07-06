@@ -118,12 +118,14 @@ void binding_setCustom(const std::vector<int> & pin) {
 }
 
 static void doBindThread(const int tid) {
+#ifndef USE_COROUTINES
     if (customBinding[tid] == -1)
         return;
     if (sched_setaffinity(0, CPU_ALLOC_SIZE(numLogicalProcessors), cpusets[tid%numLogicalProcessors])) { // bind thread to core
         std::cout<<"ERROR: could not bind thread "<<tid<<" to cpuset "<<cpusets[tid%numLogicalProcessors]<<std::endl;
         exit(-1);
     }
+#endif    
 }
 
 int binding_getActualBinding(const int tid) {
