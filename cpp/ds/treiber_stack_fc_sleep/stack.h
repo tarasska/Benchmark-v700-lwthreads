@@ -52,8 +52,10 @@ struct alignas(CACHE_LINE_SIZE) fc_request {
    volatile FCStatus        status;
    K*                       result_ptr;
    volatile bool            result_valid;
-   volatile int             pos;
-   suspend_t                suspend_data;
+   
+   std::atomic<fc_request*> next;
+   std::atomic<bool>        locked;
+   suspend_t                suspend_data{};
 
 
    fc_request()
@@ -62,43 +64,112 @@ struct alignas(CACHE_LINE_SIZE) fc_request {
        , status(FCStatus::EMPTY)
        , result_ptr(nullptr)
        , result_valid(false)
-       , pos(-1)
+       , next(nullptr)
+       , locked(false)
    {}
 };
 
 template <typename K>
 struct fc_array {
-   fc_request<K>* slots[FC_MAX_THREADS];
-   atomic<int>    length{0};
+    std::atomic<fc_request<K>*> head;
+    std::atomic<fc_request<K>*> tail;
 
+    fc_array() : head(nullptr), tail(nullptr) {
+    }
 
-   fc_array() {
-       for (int i = 0; i < FC_MAX_THREADS; ++i) {
-           slots[i] = nullptr;
-       }
-   }
+    void addRequest(fc_request<K>* req) {
+        nasl::core::Suspendable<suspend_t>::init(&req->suspend_data);
+        fc_request<K> *predecessor = tail.exchange(req);
 
-   void addRequest(fc_request<K>* req) {
-       if (req->pos == -1) {
-           int idx = length.fetch_add(1, memory_order_relaxed);
-           slots[idx] = req;
-           atomic_thread_fence(memory_order_release);
-           req->pos = idx;
-       }
-   }
-   int loadRequests(fc_request<K>** out) {
-       atomic_thread_fence(memory_order_acquire);
-       int end = length.load(memory_order_relaxed);
-       int j = 0;
-       for (int i = 0; i < end; ++i) {
-           fc_request<K>* r = slots[i];
-           if (r != nullptr && r->status == FCStatus::PUSHED) {
-               out[j++] = r;
-           }
-       }
-       out[j] = nullptr;
-       return j;
-   }
+        if (predecessor != nullptr) {
+            //std::cout << "Adding: " << req << " Prev: " << req << std::endl;
+            if (predecessor == req) {
+                //std::cout << "ERROR, pred==req: " << req << std::endl; 
+            }
+            //req->locked.store(true, std::memory_order_release);
+            predecessor->next.store(req, std::memory_order_release);
+
+            // auto backoff_policy = BackoffPolicy::make(&req->suspend_data);
+            // while (req->locked.load(std::memory_order_acquire)) {
+            //     backoff_policy.OnSpinWait();
+            // }
+        } else {
+            nasl::core::Suspendable<suspend_t>::resume(&req->suspend_data); // Turn off suspending
+            //std::cout << "Adding: " << req << " Set as head. " << std::endl;
+            head.store(req, std::memory_order_release);
+        }
+    }
+
+    int combine(fc_request<K>** out) {
+        fc_request<K>* cur_head = head.load(std::memory_order_acquire);
+        if (cur_head == nullptr) {
+            //std::cout << "Cur is empty" << std::endl;
+            out[0] = nullptr;
+            return 0;
+        }
+
+        fc_request<K>* last = tail.load(std::memory_order_acquire);
+        //std::cout << "Head: " << cur_head << "; Tail: " << last << std::endl;
+        if (cur_head == last) {
+            //std::cout << "Expected 1 size" << std::endl;
+            // queue size == 1
+            if (tail.compare_exchange_strong(last, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
+                if (head.compare_exchange_strong(cur_head, nullptr)) {
+                    //std::cout << "Drop head " << cur_head << std::endl;
+                }
+                //std::cout << "Drop tail " << last << " Tail load: " << tail.load(std::memory_order_acquire) << std::endl;
+                out[0] = last;
+                out[1] = nullptr;
+                return 1;
+            }
+            //std::cout << "Refresh tail, new last=" << last << std::endl;
+            // otherwise reuse new 'last' value
+        }
+
+        int j = 0;
+        fc_request<K>* cur = cur_head;
+        while (cur != last) {
+            if (cur->status == FCStatus::PUSHED) {
+                //std::cout << "Add ptr:" << cur << std::endl;
+                out[j++] = cur;
+            }
+            fc_request<K>* next = nullptr;
+            while (next == nullptr) {
+                next = cur->next.load(std::memory_order_acquire);
+                //std::cout << "Next cur:" << cur << std::endl;
+            }
+            cur = next;
+        }
+        if (cur->status == FCStatus::PUSHED) {
+            //std::cout << "Add last ptr:" << cur << std::endl;
+            out[j++] = cur;
+        }
+        
+        fc_request<K>* last_next = last->next.load(std::memory_order_acquire);
+        if (last_next == nullptr) {
+            if (tail.compare_exchange_strong(last, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
+                if (head.compare_exchange_strong(cur_head, nullptr)) {
+                    //std::cout << "Drop head 2: " << cur_head << std::endl;
+                } else {
+                    //std::cout << "Drop head 2 failed: " << cur_head << std::endl;
+                }
+                //std::cout << "Drop tail 2: " << last << std::endl;
+
+                out[j] = nullptr;
+                return j;
+            }
+            fc_request<K>* last_next = nullptr;
+            do {
+                last_next = last->next.load(std::memory_order_acquire);
+                //std::cout << "Load last.next:" << cur << std::endl;
+            } while (last_next == nullptr);
+        }
+        nasl::core::Suspendable<suspend_t>::resume(&last_next->suspend_data); // No suspend
+        head.store(last_next, std::memory_order_release);
+        //std::cout << "Combined nodes: " << j << "Now head: " << head.load(std::memory_order_acquire) << std::endl;
+        out[j] = nullptr;
+        return j;
+    }
 };
 
 template <typename K>
@@ -107,7 +178,8 @@ private:
    mstack_node<K>* stack_top;
    alignas(CACHE_LINE_SIZE) atomic<int> combiner_lock{0};
    fc_array<K> pub_array;
-   alignas(CACHE_LINE_SIZE) fc_request<K> thread_slots[FC_MAX_THREADS];
+   alignas(CACHE_LINE_SIZE) fc_request<K> thread_requests[FC_MAX_THREADS];
+   std::atomic<int> gen_counter{0};
 
 
 public:
@@ -121,13 +193,16 @@ public:
             delete temp;
         }
     }
+
     K* find(const int tid, skey_t key) {
-        fc_request<K>& req = thread_slots[tid];
+        fc_request<K>& req = thread_requests[tid];
         K result_storage{};
         req.result_ptr   = &result_storage;
         req.result_valid = false;
         req.key          = key;
         req.type         = FCOperationType::FIND;
+        req.next.store(nullptr, std::memory_order_release);
+        
         handleRequest(tid, req);
         if (req.result_valid) {
             return new K(result_storage);
@@ -136,26 +211,28 @@ public:
     }
 
     unique_ptr<K> push(const int tid, skey_t key) {
-        fc_request<K>& req = thread_slots[tid];
+        fc_request<K>& req = thread_requests[tid];
         K result_storage = static_cast<K>(key);
         req.result_ptr   = &result_storage;
         req.result_valid = false;
         req.key          = key;
         req.type         = FCOperationType::PUSH;
-
+        req.next.store(nullptr, std::memory_order_release);
+        
         handleRequest(tid, req);
 
         return make_unique<K>(result_storage);
     }
 
     unique_ptr<K> pop(const int tid) {
-        fc_request<K>& req = thread_slots[tid];
+        fc_request<K>& req = thread_requests[tid];
         K result_storage{};
         req.result_ptr   = &result_storage;
         req.result_valid = false;
         req.key          = 0;
         req.type         = FCOperationType::POP;
-
+        req.next.store(nullptr, std::memory_order_release);
+        
         handleRequest(tid, req);
 
         if (req.result_valid) {
@@ -187,15 +264,16 @@ private:
     }
 
     void handleRequest(int tid, fc_request<K>& req) {
+        //std::cout << "Handle req: " << &req << std::endl;
         req.status = FCStatus::PUSHED;
         atomic_thread_fence(memory_order_release);
         pub_array.addRequest(&req);
         while (true) {
             if (tryLock()) {
-                pub_array.addRequest(&req);
+                //pub_array.addRequest(&req);
                 fc_request<K>* batch[FC_MAX_THREADS + 1];
                 for (int t = 0; t < FC_TRIES; ++t) {
-                    int count = pub_array.loadRequests(batch);
+                    int count = pub_array.combine(batch);
                     if (count == 0) {
                         break;  // no pending work
                     }
@@ -204,6 +282,7 @@ private:
                         executeSingle(r);
                         atomic_thread_fence(memory_order_release);
                         r->status = FCStatus::FINISHED;
+                        //r->locked.store(false, std::memory_order_release);
                         nasl::core::Suspendable<suspend_t>::resume(&r->suspend_data);
                     }
                     if (count < FC_THRESHOLD) {
@@ -214,13 +293,14 @@ private:
                 unlock();
                 return;
             } else {
-                auto backoff_policy = BackoffPolicy::make(&req.suspend_data);    
+                auto backoff_policy = BackoffPolicy::make(&req.suspend_data);
+                //auto backoff_policy = BackoffPolicy::make();   
                 while (isLocked()) {
                     if (req.status == FCStatus::FINISHED) {
                         return; 
                     }
                     backoff_policy.OnSpinWait();
-                    pub_array.addRequest(&req);
+                    //pub_array.addRequest(&req);
                 }
                 if (req.status == FCStatus::FINISHED) {
                     return;
