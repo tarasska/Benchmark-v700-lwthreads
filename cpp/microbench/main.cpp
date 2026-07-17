@@ -282,11 +282,13 @@ void execute(globals_t* g, Parameters* parameters) {
                 boost::this_fiber::yield();
             }
         };
-
+#ifdef WITH_PARALLEL_WORK
+        std::cout << "Init parallel work fibers..." << std::endl;
         std::vector<boost::fibers::fiber> work_fibers(parameters->get_num_threads());
         for (int i = 0; i < parameters->get_num_threads(); ++i) {
             work_fibers[i] = boost::fibers::fiber(work_loop);
         }
+#endif        
         std::vector<boost::fibers::fiber> fibers(parameters->get_num_threads());
         for (int i = 0; i < parameters->get_num_threads(); ++i) {
             fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
@@ -296,9 +298,11 @@ void execute(globals_t* g, Parameters* parameters) {
             fibers[i].join();
         }
         stop.store(true);
+#ifdef WITH_PARALLEL_WORK        
         for (int i = 0; i < parameters->get_num_threads(); ++i) {
             work_fibers[i].join();
         }
+#endif
         g_coro_work_iterations = total_work_iters.load();
         std::cout << "finished (multi-thread mode)\n";
     }
