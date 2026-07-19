@@ -10,6 +10,7 @@ Treiber Stack with FC
 #include <boost/fiber/all.hpp>
 
 #include <nasl/util/statefull_backoff.hpp>
+#include <nasl/yield.hpp>
 #include "../nasl_boost_fibers/suspendable.hpp"
 
 using namespace std;
@@ -71,13 +72,13 @@ struct alignas(CACHE_LINE_SIZE) fc_request {
 
 template <typename K>
 struct fc_array {
-    std::atomic<fc_request<K>*> head;
     std::atomic<fc_request<K>*> tail;
 
-    fc_array() : head(nullptr), tail(nullptr) {
+    fc_array() : tail(nullptr) {
     }
 
-    void addRequest(fc_request<K>* req) {
+    template<typename StackOp>
+    void executeRequest(fc_request<K>* req, StackOp op) {
         nasl::core::Suspendable<suspend_t>::init(&req->suspend_data);
         fc_request<K> *predecessor = tail.exchange(req);
 
@@ -89,50 +90,26 @@ struct fc_array {
             req->locked.store(true, std::memory_order_release);
             predecessor->next.store(req, std::memory_order_release);
 
-            // auto backoff_policy = BackoffPolicy::make(&req->suspend_data);
-            // while (req->locked.load(std::memory_order_acquire)) {
-            //     backoff_policy.OnSpinWait();
-            // }
+            auto backoff_policy = BackoffPolicy::make(&req->suspend_data);
+            while (req->locked.load(std::memory_order_acquire)) {
+                backoff_policy.OnSpinWait();
+            }
         } else {
-            nasl::core::Suspendable<suspend_t>::resume(&req->suspend_data); // Turn off suspending
+            // nasl::core::Suspendable<suspend_t>::resume(&req->suspend_data); // Turn off suspending
             req->locked.store(false, std::memory_order_release);
             //std::cout << "Adding: " << req << " Set as head. " << std::endl;
-            head.store(req, std::memory_order_release);
+            combine(req, op);
         }
     }
 
     template<typename StackOp>
-    void combine(StackOp op) {
-        fc_request<K>* cur_head = head.load(std::memory_order_acquire);
-        if (cur_head == nullptr) {
-            //std::cout << "Cur is empty" << std::endl;
-            return;
-        }
+    void combine(fc_request<K>* combiner_req, StackOp op) {
 
-        fc_request<K>* last = tail.load(std::memory_order_acquire);
-        //std::cout << "Head: " << cur_head << "; Tail: " << last << std::endl;
-        // if (cur_head == last) {
-        //     //std::cout << "Expected 1 size" << std::endl;
-        //     // queue size == 1
-        //     if (tail.compare_exchange_strong(last, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
-        //         if (head.compare_exchange_strong(cur_head, nullptr)) {
-        //             //std::cout << "Drop head " << cur_head << std::endl;
-        //         }
-        //         //std::cout << "Drop tail " << last << " Tail load: " << tail.load(std::memory_order_acquire) << std::endl;
-        //         out[0] = last;
-        //         out[1] = nullptr;
-        //         return 1;
-        //     }
-        //     //std::cout << "Refresh tail, new last=" << last << std::endl;
-        //     // otherwise reuse new 'last' value
-        // }
-
-        fc_request<K>* cur = cur_head;
-        while (cur != last) {
-            if (cur->status == FCStatus::PUSHED) {
-                //std::cout << "Add ptr:" << cur << std::endl;
-                op(cur);
-            }
+        fc_request<K>* cur = combiner_req;
+        fc_request<K>* cur_tail = tail.load(std::memory_order_acquire);
+        while (cur != cur_tail) {
+            op(cur);
+        
             fc_request<K>* next = nullptr;
             while (next == nullptr) {
                 next = cur->next.load(std::memory_order_acquire);
@@ -140,32 +117,25 @@ struct fc_array {
             }
             cur = next;
         }
-        if (cur->status == FCStatus::PUSHED) {
-            //std::cout << "Add last ptr:" << cur << std::endl;
-            op(cur);
-        }
+        op(cur);
         
-        fc_request<K>* last_next = last->next.load(std::memory_order_acquire);
-        if (last_next == nullptr) {
-            if (tail.compare_exchange_strong(last, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
-                if (head.compare_exchange_strong(cur_head, nullptr)) {
-                    //std::cout << "Drop head 2: " << cur_head << std::endl;
-                } else {
-                    //std::cout << "Drop head 2 failed: " << cur_head << std::endl;
-                }
+        fc_request<K>* next_combiner = cur->next.load(std::memory_order_acquire);
+        if (next_combiner == nullptr) {
+            if (tail.compare_exchange_strong(cur_tail, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
                 //std::cout << "Drop tail 2: " << last << std::endl;
 
                 return;
             }
-            fc_request<K>* last_next = nullptr;
+
+            next_combiner = nullptr;
             do {
-                last_next = last->next.load(std::memory_order_acquire);
+                next_combiner = cur->next.load(std::memory_order_acquire);
                 //std::cout << "Load last.next:" << cur << std::endl;
-            } while (last_next == nullptr);
+            } while (next_combiner == nullptr);
         }
-        last_next->locked.store(false, std::memory_order_release);
-        nasl::core::Suspendable<suspend_t>::resume(&last_next->suspend_data); // No suspend
-        head.store(last_next, std::memory_order_release);
+        next_combiner->locked.store(false, std::memory_order_release);
+        nasl::core::Suspendable<suspend_t>::resume(&next_combiner->suspend_data); // No suspend
+        
         //std::cout << "Combined nodes: " << j << "Now head: " << head.load(std::memory_order_acquire) << std::endl;
     }
 };
@@ -266,20 +236,20 @@ private:
         //std::cout << "Handle req: " << &req << std::endl;
         req.status = FCStatus::PUSHED;
         atomic_thread_fence(memory_order_release);
-        pub_array.addRequest(&req);
-        auto backoff_policy = BackoffPolicy::make(&req.suspend_data);
-        while (true) {
-            if (req.status == FCStatus::FINISHED) {
-                return; 
-            }
+        // pub_array.executeRequest(&req);
+        // auto backoff_policy = BackoffPolicy::make(&req.suspend_data);
+        // while (true) {
+        //     if (req.status == FCStatus::FINISHED) {
+        //         return; 
+        //     }
 
-            if (req.locked.load(std::memory_order_acquire)) {
-                backoff_policy.OnSpinWait();
-            } else {
-                pub_array.combine([this](fc_request<K>* r) { this->executeRequest(r); });
-                return;
-            }
-        }
+        //     if (req.locked.load(std::memory_order_acquire)) {
+        //         backoff_policy.OnSpinWait();
+        //     } else {
+        //         pub_array.combine(&req, [this](fc_request<K>* r) { this->executeRequest(r); });
+        //         return;
+        //     }
+        // }
     }
 
     void executeRequest(fc_request<K>* r) {

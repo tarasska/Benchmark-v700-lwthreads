@@ -206,7 +206,6 @@ Statistic get_statistic(int64_t elapsed_millis) {
     return Statistic(elapsed_millis / 1000.);
 }
 
-#define RUN_COROUTINES true
 volatile uint64_t g_coro_work_iterations = 0
 
 #include <boost/fiber/all.hpp>
@@ -214,8 +213,10 @@ volatile uint64_t g_coro_work_iterations = 0
 #include <vector>
 
 void execute(globals_t* g, Parameters* parameters) {
-    //std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
+    std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
+
+#ifdef USE_COROUTINES   
     const int total_fibers = parameters->get_num_threads();
     const int g_num_os_threads = parameters->get_num_os_threads();
     const int num_os_threads    = g_num_os_threads;
@@ -229,7 +230,27 @@ void execute(globals_t* g, Parameters* parameters) {
     std::cout << "execute: total_fibers=" << total_fibers
              << " num_os_threads=" << num_os_threads
              << " fibers_per_thread=" << fibers_per_thread << "\n";
+#else
+    std::cout << "OS THREADS (" << parameters->get_num_threads() << ") WILL BE USED...\n";
+    // std::cout << "binding threads...\n";
+    // binding_setCustom(parameters->get_pin());
+    // bind_threads(parameters->get_num_threads());
 
+    std::cout << "creating threads...\n";
+
+    for (int i = 0; i < parameters->get_num_threads(); ++i) {
+        threads[i] = new std::thread(&ThreadLoop::run, thread_loops[i]);
+    }
+
+    std::cout << "All threads created...\n";
+
+    while (g->running < parameters->get_num_threads()) {
+        TRACE COUTATOMIC("main thread: waiting for threads to START running=" << g->running
+                                                                              << std::endl);
+    }  // wait for all threads to be ready
+
+    std::cout << "All threads are ready...\n";
+#endif
 
    ////////////////////////////////////
 
@@ -242,11 +263,11 @@ void execute(globals_t* g, Parameters* parameters) {
     ___timeline_use = 1;
 #endif
 
-    #ifdef USE_COROUTINES
+#ifdef USE_COROUTINES
     parameters->stopCondition->start(parameters->get_num_threads());
-   g->start = true;
-   __sync_synchronize();
-   SOFTWARE_BARRIER;
+    g->start = true;
+    __sync_synchronize();
+    SOFTWARE_BARRIER;
 
 
     if (num_os_threads <= 1) {
@@ -306,7 +327,16 @@ void execute(globals_t* g, Parameters* parameters) {
         g_coro_work_iterations = total_work_iters.load();
         std::cout << "finished (multi-thread mode)\n";
     }
-    #endif
+#else
+    parameters->stopCondition->start(parameters->get_num_threads());
+    g->start = true;
+    SOFTWARE_BARRIER;
+
+    std::cout << "Joining OS threads\n";
+    for (size_t i = 0; i < parameters->get_num_threads(); ++i) {
+        threads[i]->join();
+    }    
+#endif
 
     SOFTWARE_BARRIER;
     g->done = true;
@@ -366,7 +396,7 @@ void execute(globals_t* g, Parameters* parameters) {
         std::chrono::duration_cast<std::chrono::milliseconds>(g->endTime - g->startTime).count();
 
     parameters->stopCondition->clean();
-    //delete[] threads;
+    delete[] threads;
     delete[] thread_loops;
     binding_deinit();
 
@@ -429,7 +459,11 @@ void run(globals_t* g) {
         g->benchParameters->test->get_num_os_threads()
     });
     std::cout << "MAX OS THREADS = " << max_os_threads << std::endl;
+#ifdef USE_COROUTINES
     construct_work_stealing_workers(max_os_threads);
+#else
+    std::cout << "OS Threads will be used instead of coroutines\n";
+#endif    
 
 #ifdef KEY_DEPTH_TOTAL_STAT
     key_depth_total_sum__ = 0;

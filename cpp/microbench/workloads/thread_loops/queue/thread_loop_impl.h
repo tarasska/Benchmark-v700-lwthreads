@@ -9,7 +9,7 @@ namespace microbench::workload::queue {
     this->g->dsAdapter->initThread(threadId);                                      \
     tid = this->threadId;                                                          \
     int cnt = 0;                                                                   \
-    //binding_bindThread(tid);                                                     \
+    binding_bindThread(tid);                                                       \
     garbage = 0;                                                                   \
     NO_VALUE = this->g->dsAdapter->getNoValue();                                   \
     __RLU_INIT_THREAD;                                                             \
@@ -26,7 +26,7 @@ namespace microbench::workload::queue {
                    std::chrono::high_resolution_clock::now() - this->g->startTime) \
                    .count());                                                      \
     papi_start_counters(tid);                                                      \
-    int cnt = 0;                                                                   \
+    cnt = 0;                                                                       \
     DURATION_START(tid);
 
 #define THREAD_MEASURED_POST                                                       \

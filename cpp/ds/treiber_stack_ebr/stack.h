@@ -11,6 +11,7 @@
 #include <vector>
 #include <boost/fiber/all.hpp>
 
+#include <nasl/yield.hpp>
 
 using namespace std;
 
@@ -216,7 +217,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
                return new K(curr->key);
            }
            curr = curr->next;
-           boost::this_fiber::yield();
+           nasl::core::yield();
        }
        return nullptr;
    }
@@ -230,7 +231,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
 
        do {
            new_node->next = expected;
-           boost::this_fiber::yield();
+           nasl::core::yield();
        } while (!top.compare_exchange_weak(
            expected,
            new_node,
@@ -259,7 +260,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
            new_top = expected->next;
 
 
-           boost::this_fiber::yield();
+           nasl::core::yield();
        } while (!top.compare_exchange_weak(
            expected,
            new_top,

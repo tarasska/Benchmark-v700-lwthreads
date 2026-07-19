@@ -10,6 +10,7 @@ Treiber Stack with FC
 #include <boost/fiber/all.hpp>
 
 #include <nasl/util/statefull_backoff.hpp>
+#include <nasl/yield.hpp>
 #include "../nasl_boost_fibers/suspendable.hpp"
 
 using namespace std;
@@ -49,12 +50,11 @@ template <typename K>
 struct alignas(CACHE_LINE_SIZE) fc_request {
    volatile FCOperationType type;
    volatile skey_t          key;
-   volatile FCStatus        status;
+   std::atomic<FCStatus>    status;
    K*                       result_ptr;
    volatile bool            result_valid;
    
    std::atomic<fc_request*> next;
-   std::atomic<bool>        locked;
    suspend_t                suspend_data{};
 
 
@@ -65,7 +65,6 @@ struct alignas(CACHE_LINE_SIZE) fc_request {
        , result_ptr(nullptr)
        , result_valid(false)
        , next(nullptr)
-       , locked(false)
    {}
 };
 
@@ -108,31 +107,13 @@ struct fc_array {
             return 0;
         }
 
-        fc_request<K>* last = tail.load(std::memory_order_acquire);
-        //std::cout << "Head: " << cur_head << "; Tail: " << last << std::endl;
-        if (cur_head == last) {
-            //std::cout << "Expected 1 size" << std::endl;
-            // queue size == 1
-            if (tail.compare_exchange_strong(last, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
-                if (head.compare_exchange_strong(cur_head, nullptr)) {
-                    //std::cout << "Drop head " << cur_head << std::endl;
-                }
-                //std::cout << "Drop tail " << last << " Tail load: " << tail.load(std::memory_order_acquire) << std::endl;
-                out[0] = last;
-                out[1] = nullptr;
-                return 1;
-            }
-            //std::cout << "Refresh tail, new last=" << last << std::endl;
-            // otherwise reuse new 'last' value
-        }
+        fc_request<K>* cur_tail = tail.load(std::memory_order_acquire);
 
         int j = 0;
         fc_request<K>* cur = cur_head;
-        while (cur != last) {
-            if (cur->status == FCStatus::PUSHED) {
-                //std::cout << "Add ptr:" << cur << std::endl;
-                out[j++] = cur;
-            }
+        while (cur != cur_tail) {
+            out[j++] = cur;
+
             fc_request<K>* next = nullptr;
             while (next == nullptr) {
                 next = cur->next.load(std::memory_order_acquire);
@@ -140,14 +121,11 @@ struct fc_array {
             }
             cur = next;
         }
-        if (cur->status == FCStatus::PUSHED) {
-            //std::cout << "Add last ptr:" << cur << std::endl;
-            out[j++] = cur;
-        }
+        out[j++] = cur;
         
-        fc_request<K>* last_next = last->next.load(std::memory_order_acquire);
-        if (last_next == nullptr) {
-            if (tail.compare_exchange_strong(last, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
+        fc_request<K>* cur_tail_next = cur->next.load(std::memory_order_acquire);
+        if (cur_tail_next == nullptr) {
+            if (tail.compare_exchange_strong(cur_tail, nullptr, std::memory_order_seq_cst, std::memory_order_acquire)) {
                 if (head.compare_exchange_strong(cur_head, nullptr)) {
                     //std::cout << "Drop head 2: " << cur_head << std::endl;
                 } else {
@@ -158,14 +136,13 @@ struct fc_array {
                 out[j] = nullptr;
                 return j;
             }
-            fc_request<K>* last_next = nullptr;
             do {
-                last_next = last->next.load(std::memory_order_acquire);
+                cur_tail_next = cur->next.load(std::memory_order_acquire);
                 //std::cout << "Load last.next:" << cur << std::endl;
-            } while (last_next == nullptr);
+            } while (cur_tail_next == nullptr);
         }
-        nasl::core::Suspendable<suspend_t>::resume(&last_next->suspend_data); // No suspend
-        head.store(last_next, std::memory_order_release);
+        nasl::core::Suspendable<suspend_t>::resume(&cur_tail_next->suspend_data); // No suspend
+        head.store(cur_tail_next, std::memory_order_release);
         //std::cout << "Combined nodes: " << j << "Now head: " << head.load(std::memory_order_acquire) << std::endl;
         out[j] = nullptr;
         return j;
@@ -179,8 +156,6 @@ private:
    alignas(CACHE_LINE_SIZE) atomic<int> combiner_lock{0};
    fc_array<K> pub_array;
    alignas(CACHE_LINE_SIZE) fc_request<K> thread_requests[FC_MAX_THREADS];
-   std::atomic<int> gen_counter{0};
-
 
 public:
     mstack() : stack_top(nullptr) {}
@@ -270,27 +245,27 @@ private:
         pub_array.addRequest(&req);
         while (true) {
             if (tryLock()) {
-                //pub_array.addRequest(&req);
+                //std::cout << "Lock combiner: " << &req << std::endl;
                 fc_request<K>* batch[FC_MAX_THREADS + 1];
-                for (int t = 0; t < FC_TRIES; ++t) {
-                    int count = pub_array.combine(batch);
-                    if (count == 0) {
-                        break;  // no pending work
-                    }
-                    for (int i = 0; i < count; ++i) {
-                        fc_request<K>* r = batch[i];
-                        executeSingle(r);
-                        atomic_thread_fence(memory_order_release);
-                        r->status = FCStatus::FINISHED;
-                        //r->locked.store(false, std::memory_order_release);
-                        nasl::core::Suspendable<suspend_t>::resume(&r->suspend_data);
-                    }
-                    if (count < FC_THRESHOLD) {
-                        break;
-                    }
-                    boost::this_fiber::yield();
+                //for (int t = 0; t < FC_TRIES; ++t) {
+                int count = pub_array.combine(batch);
+                std::cout << "Combiner: " << &req << std::endl;   
+                for (int i = 0; i < count; ++i) {
+                    fc_request<K>* r = batch[i];
+                    executeSingle(r);
+                    atomic_thread_fence(memory_order_release);
+                    r->status = FCStatus::FINISHED;
+                    std::cout << "Processed: " << r << std::endl;             
+                    nasl::core::Suspendable<suspend_t>::resume(&r->suspend_data);
                 }
+
+                if (req.status != FCStatus::FINISHED) {
+                    std::cout << "Unxepcted status for combiner request " << static_cast<std::underlying_type<FCStatus>::type>(req.status.load()) << std::endl;
+                    throw std::runtime_error("Unexpected combiner request status");
+                }
+                
                 unlock();
+                //std::cout << "Unlock combiner: " << &req << std::endl;
                 return;
             } else {
                 auto backoff_policy = BackoffPolicy::make(&req.suspend_data);

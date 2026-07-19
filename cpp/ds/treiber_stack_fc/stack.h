@@ -8,6 +8,8 @@ Treiber Stack with FC
 #include <memory>
 #include <boost/fiber/all.hpp>
 
+#include <nasl/yield.hpp>
+
 using namespace std;
 
 typedef intptr_t skey_t;
@@ -201,7 +203,7 @@ private:
                    if (count < FC_THRESHOLD) {
                        break;
                    }
-                   boost::this_fiber::yield();
+                   nasl::core::yield();
                }
                unlock();
                return;
@@ -210,7 +212,7 @@ private:
                    if (req.status == FCStatus::FINISHED) {
                        return; 
                    }
-                   boost::this_fiber::yield();
+                   nasl::core::yield();
                    pub_array.addRequest(&req);
                }
                if (req.status == FCStatus::FINISHED) {

@@ -9,6 +9,8 @@
 #include <boost/fiber/all.hpp>
 #include <immintrin.h>
 
+#include <nasl/yield.hpp>
+
 using namespace std;
 
 typedef intptr_t skey_t;
@@ -85,7 +87,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
                 return new K(curr->key);
             }
             curr = curr->next;
-            boost::this_fiber::yield();
+            nasl::core::yield();
         }
         return nullptr;
     }
@@ -108,7 +110,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
             if (tries < SPIN_THRESHOLD) {
                 spin(f(tries));
             } else {
-                boost::this_fiber::yield();
+                nasl::core::yield();
             }
         }
         return std::make_unique<K>(key);
@@ -136,7 +138,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
             if (tries < SPIN_THRESHOLD) {
                 spin(f(tries));
             } else {
-                boost::this_fiber::yield();
+                nasl::core::yield();
             }
         }
     }

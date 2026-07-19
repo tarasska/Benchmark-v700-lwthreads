@@ -91,7 +91,7 @@ add_definitions("-DMAX_THREADS_POW2=2048"
         "-DKEY_DEPTH_TOTAL_STAT"
         "-DKEY_SEARCH_TOTAL_STAT"
         "-Wno-volatile"
-        "-DUSE_COROUTINES"
+        #"-DUSE_COROUTINES"
         "-DWITH_PARALLEL_WORK")
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_LIST})

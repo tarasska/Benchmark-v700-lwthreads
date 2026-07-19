@@ -5,7 +5,9 @@
 namespace nasl::core {
 
    void yield() {
+#ifdef USE_COROUTINES     
       boost::this_fiber::yield();
+#endif      
    }
 
 }
