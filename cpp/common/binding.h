@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string>
 #include "plaf.h"
+#include "boost/fiber/numa/pin_thread.hpp"
 
 // cpu sets for binding threads to cores
 static cpu_set_t *cpusets[LOGICAL_PROCESSORS];
@@ -168,9 +169,14 @@ bool binding_isInjectiveMapping(const int nthreads) {
 }
 
 void binding_bindThread(const int tid) {
-    if (numCustomBindings > 0) {
-        doBindThread(tid);
-    }
+#ifndef USE_COROUTINES
+    auto core = tid % std::thread::hardware_concurrency();
+    boost::fibers::numa::pin_thread(core);
+    std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) << std::endl;
+#endif        
+    // if (numCustomBindings > 0) {
+    //     doBindThread(tid);
+    // }
 }
 
 void binding_configurePolicy(const int nthreads) {
