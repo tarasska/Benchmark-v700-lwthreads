@@ -74,10 +74,12 @@ endif ()
 set(QUEUE_DS
     treiber_stack_fc_sleep
     treiber_stack_fc_sleep_mcs
+    treiber_stack_sleep_mcs
     treiber_stack
     treiber_stack_fast
     treiber_stack_fc
     stack_nasl_mcs
+    stack_global_lock
 )
 
 add_definitions("-DMAX_THREADS_POW2=2048"
@@ -92,7 +94,8 @@ add_definitions("-DMAX_THREADS_POW2=2048"
         "-DKEY_SEARCH_TOTAL_STAT"
         "-Wno-volatile"
         #"-DUSE_COROUTINES"
-        "-DWITH_PARALLEL_WORK")
+        #"-DWITH_PARALLEL_WORK"
+)
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_LIST})
 message(CMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS})

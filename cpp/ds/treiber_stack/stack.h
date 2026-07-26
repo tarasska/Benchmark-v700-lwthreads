@@ -20,12 +20,12 @@ typedef intptr_t skey_t;
 /**
  * Exponential backoff
  */
-static constexpr uint64_t BASE_SPIN_COUNT = 100;
+static constexpr uint64_t BASE_SPIN_COUNT = 128;
 static constexpr uint64_t MAX_SPIN_COUNT = 10000;
-static constexpr int SPIN_THRESHOLD = 8;
+static constexpr int SPIN_THRESHOLD = 16;
 
-inline uint64_t f(int tries) {
-    uint64_t spin_count = BASE_SPIN_COUNT * (1ULL << tries);  // 100 * 2^tries
+inline uint64_t f(const int tid, const int tries) {
+    uint64_t spin_count = (tid % BASE_SPIN_COUNT) + BASE_SPIN_COUNT * (1ULL << tries);  // 128 * 2^tries
     return std::min(spin_count, MAX_SPIN_COUNT);
 }
 
@@ -87,7 +87,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
                 return new K(curr->key);
             }
             curr = curr->next;
-            nasl::core::yield();
+            //nasl::core::yield();
         }
         return nullptr;
     }
@@ -108,7 +108,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
             }
             tries++;
             if (tries < SPIN_THRESHOLD) {
-                spin(f(tries));
+                spin(f(tid, tries));
             } else {
                 nasl::core::yield();
             }
@@ -136,7 +136,7 @@ struct alignas(CACHE_LINE_SIZE) mstack
             }
             tries++;
             if (tries < SPIN_THRESHOLD) {
-                spin(f(tries));
+                spin(f(tid, tries));
             } else {
                 nasl::core::yield();
             }

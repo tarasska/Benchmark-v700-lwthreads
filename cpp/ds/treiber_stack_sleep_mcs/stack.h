@@ -79,38 +79,32 @@ struct fc_array {
 
     template<typename StackOp>
     void executeRequest(fc_request<K>* req, StackOp op) {
+        lock(req);
+
+        op(req);
+
+        unlock_next(req);
+    }
+
+    void lock(fc_request<K>* req) {
         nasl::core::Suspendable<suspend_t>::init(&req->suspend_data);
         req->next.store(nullptr);
         req->locked.store(true);
         fc_request<K> *predecessor = tail.exchange(req);
 
-        if (predecessor != nullptr) {
-            //std::cout << "Adding: " << req << " Prev: " << req << std::endl;
-            if (predecessor == req) {
-                //std::cout << "ERROR, pred==req: " << req << std::endl; 
-            }
-            
+        if (predecessor != nullptr) {         
             predecessor->next.store(req);
 
             auto backoff_policy = BackoffPolicy::make(&req->suspend_data);
             while (req->locked.load()) {
                 backoff_policy.OnSpinWait();
             }
-            // if (req->status.load() == FCStatus::FINISHED) {
-            //     return;
-            // } else {
-            //     std::cout << "New next combiner: " << req << std::endl;
-            // }
-            //combine(req, op);
         } else {
-            //std::cout << "New head combiner: " << req << std::endl;
-            // nasl::core::Suspendable<suspend_t>::resume(&req->suspend_data); // Turn off suspending
             req->locked.store(false, std::memory_order_release);
-            //std::cout << "Adding: " << req << " Set as head. " << std::endl;
-            //combine(req, op);
         }
-        //combine(req, op);
-        op(req);
+    }
+
+    void unlock_next(fc_request<K>* req) {
         fc_request<K>* next = req->next.load();
         if (next == nullptr) {
             fc_request<K>* expected = req;
@@ -126,52 +120,6 @@ struct fc_array {
         }
         next->locked.store(false);
         nasl::core::Suspendable<suspend_t>::resume(&next->suspend_data);
-    }
-
-    template<typename StackOp>
-    void combine(fc_request<K>* combiner_req, StackOp op) {
-        std::cout << "Combiner: " << combiner_req << std::endl;
-        fc_request<K>* cur = combiner_req;
-        fc_request<K>* cur_tail = tail.load();
-        std::cout << "Tail: " << cur_tail << std::endl;
-        while (cur != cur_tail) {
-            op(cur);
-        
-            fc_request<K>* next = nullptr;
-            int x = 0;
-            while (next == nullptr) {
-                next = cur->next.load();
-                //std::cout << "Next cur:" << next << std::endl;
-                if (++x > 100) {
-                    std::cout << "Waiting next for " << cur << std::endl;
-                }
-            }
-            cur = next;
-        }
-        op(cur);
-        
-        fc_request<K>* next_combiner = cur->next.load();
-        if (next_combiner == nullptr) {
-            if (tail.compare_exchange_strong(cur_tail, nullptr)) {
-                std::cout << "Drop tail 2: " << cur_tail << std::endl;
-
-                return;
-            }
-
-            next_combiner = nullptr;
-            int x = 0;
-            do {
-                next_combiner = cur->next.load();
-                std::cout << "Load last.next:" << next_combiner << std::endl;
-                if (++x > 100) {
-                    std::cout << "Waiting next for " << next_combiner << " Old_tail " << cur << " New_tail " << cur_tail << std::endl;
-                }
-            } while (next_combiner == nullptr);
-        }
-        next_combiner->locked.store(false);
-        nasl::core::Suspendable<suspend_t>::resume(&next_combiner->suspend_data); // No suspend
-        
-        std::cout << "Combined nodes: " << "Now head: " << next_combiner << std::endl;
     }
 };
 
@@ -264,7 +212,6 @@ private:
     }
 
     void handleRequest(int tid, fc_request<K>& req) {
-        //std::cout << "Handle req: " << &req << std::endl;
         req.status.store(FCStatus::PUSHED);
         atomic_thread_fence(memory_order_release);
 
