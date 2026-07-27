@@ -78,6 +78,9 @@ set(QUEUE_DS
     treiber_stack
     treiber_stack_fast
     treiber_stack_fc
+    treiber_stack_4fc
+    treiber_stack_16fc
+    treiber_stack_16fc_no_yield
     stack_nasl_mcs
     stack_global_lock
 )
@@ -93,7 +96,7 @@ add_definitions("-DMAX_THREADS_POW2=2048"
         "-DKEY_DEPTH_TOTAL_STAT"
         "-DKEY_SEARCH_TOTAL_STAT"
         "-Wno-volatile"
-        #"-DUSE_COROUTINES"
+        "-DUSE_COROUTINES"
         #"-DWITH_PARALLEL_WORK"
 )
 
