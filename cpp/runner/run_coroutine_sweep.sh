@@ -25,8 +25,8 @@ REPEATS=5
 TIME_MS=10000
 RANGE=2048
 PREFILL_OPS=1024
-PUSH_RATIO=0.5
-POP_RATIO=0.5
+PUSH_RATIO=0.45
+POP_RATIO=0.45
 ALLOCATOR="libmimalloc"
 RESULTS_COMMON_DIR="sweep_results"
 LIB_DIR="../lib"
@@ -131,8 +131,8 @@ make_config() {
                     "parameters": {
                         "pushRatio": $PUSH_RATIO,
                         "popRatio": $POP_RATIO,
-                        "insertRatio": 0.1,
-                        "removeRatio": 0.1,
+                        "insertRatio": $PUSH_RATIO,
+                        "removeRatio": $POP_RATIO,
                         "rqRatio": 0.0
                     }
                 }

@@ -185,7 +185,7 @@ def setup_xaxis(ax, ticks):
     ax.set_xscale("log", base=2)
     ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.set_xticks(ticks)
-    ax.set_xlabel("coroutines per thread", fontsize=10)
+    ax.set_xlabel("threads (see 'setup' label)", fontsize=10)
 
 
 def all_ds_names(setups):
