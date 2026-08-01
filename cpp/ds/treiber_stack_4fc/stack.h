@@ -186,7 +186,7 @@ private:
        pub_array.addRequest(&req);
        while (true) {
            if (tryLock()) {
-               pub_array.addRequest(&req);
+               //pub_array.addRequest(&req);
                fc_request<K>* batch[FC_MAX_THREADS + 1];
                for (int t = 0; t < 4; ++t) {
                    int count = pub_array.loadRequests(batch);
@@ -202,7 +202,7 @@ private:
                    if (count < FC_THRESHOLD) {
                        break;
                    }
-                   nasl::core::yield();
+                   //nasl::core::yield();
                }
                unlock();
                return;
@@ -212,7 +212,7 @@ private:
                        return; 
                    }
                    nasl::core::yield();
-                   pub_array.addRequest(&req);
+                   //pub_array.addRequest(&req);
                }
                if (req.status == FCStatus::FINISHED) {
                    return;

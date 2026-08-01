@@ -16,8 +16,11 @@
 #include <perftools.h>
 #include <regex>
 
+#include "global.h"
+
 #include "random_xoshiro256p.h"
 
+int g_max_threads;
 
 #define MAIN_BENCH
 
@@ -230,14 +233,17 @@ void execute(globals_t* g, Parameters* parameters) {
     std::cout << "execute: total_fibers=" << total_fibers
              << " num_os_threads=" << num_os_threads
              << " fibers_per_thread=" << fibers_per_thread << "\n";
+
+    g_max_threads = total_fibers;         
 #else
+    g_max_threads = parameters->get_num_threads(); 
     std::cout << "OS THREADS (" << parameters->get_num_threads() << ") WILL BE USED...\n";
     // std::cout << "binding threads...\n";
     // binding_setCustom(parameters->get_pin());
     // bind_threads(parameters->get_num_threads());
 
     std::cout << "creating threads...\n";
-
+    
     for (int i = 0; i < parameters->get_num_threads(); ++i) {
         threads[i] = new std::thread(&ThreadLoop::run, thread_loops[i]);
     }
@@ -252,7 +258,8 @@ void execute(globals_t* g, Parameters* parameters) {
     std::cout << "All threads are ready...\n";
 #endif
 
-   ////////////////////////////////////
+    std::cout << "MAX_THREADS=" << g_max_threads << std::endl;
+    ////////////////////////////////////
 
     SOFTWARE_BARRIER;
     g->startTime = std::chrono::high_resolution_clock::now();
@@ -268,7 +275,6 @@ void execute(globals_t* g, Parameters* parameters) {
     g->start = true;
     __sync_synchronize();
     SOFTWARE_BARRIER;
-
 
     if (num_os_threads <= 1) {
         // SINGLE OS THREAD

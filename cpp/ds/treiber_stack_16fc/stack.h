@@ -202,7 +202,7 @@ private:
                    if (count < FC_THRESHOLD) {
                        break;
                    }
-                   nasl::core::yield();
+                   //nasl::core::yield();
                }
                unlock();
                return;
