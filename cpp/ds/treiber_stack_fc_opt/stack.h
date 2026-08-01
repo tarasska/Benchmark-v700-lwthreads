@@ -126,7 +126,7 @@ public:
 private:
     bool tryLock() {
         int expected = 0;
-        return combiner_lock.load(std::memory_order_relaxed) != 0 && combiner_lock.compare_exchange_strong(
+        return combiner_lock.load(std::memory_order_relaxed) == 0 && combiner_lock.compare_exchange_strong(
             expected, 1,
             memory_order_acquire,
             memory_order_relaxed
@@ -138,20 +138,23 @@ private:
     }
 
     void handleRequest(int tid, fc_request<K>& req) {
+        //std::cout << "Publish tid" << tid << std::endl;
         req.status = FCStatus::PUSHED; // publication
         atomic_thread_fence(memory_order_release);
         //pub_array.addRequest(&req);
         while (true) {
             if (tryLock()) {
+                //std::cout << "Locked" << tid << std::endl;
                 combine();
                 unlock();
                 return;
             } else {
-                while (req.status != FCStatus::FINISHED && combiner_lock.load(std::memory_order_relaxed) != 0) {
+                //std::cout << "Waiting" << tid << std::endl;
+                while (req.status != FCStatus::FINISHED && combiner_lock.load(std::memory_order_acquire) != 0) {
                     nasl::core::yield();
                 }
 
-                atomic_thread_fence(memory_order_acquire);
+                //atomic_thread_fence(memory_order_acquire);
                 if (req.status == FCStatus::FINISHED) {
                     return;
                 }
@@ -160,6 +163,7 @@ private:
     }
 
     void combine() {
+        //std::cout << "Combine to " << g_max_threads << std::endl;
         for (int t = 0; t < 16; ++t) {
             int ops = 0;
             for (int i = 0; i < g_max_threads; i++) {
@@ -169,9 +173,13 @@ private:
                     ++ops;
                     
                     if (req.type == FCOperationType::PUSH) {
+                        //std::cout << "Pushed req with push type" << std::endl;
+
                         stack.push_back(static_cast<K>(req.key));
                         req.result_valid = true;
                     } else if (req.type == FCOperationType::POP) {
+                        //std::cout << "Pushed req with pop type" << std::endl;
+
                         if (stack.empty()) {
                             req.result_valid = false;
                         } else {
@@ -180,6 +188,8 @@ private:
                             stack.pop_back();
                         }
                     } else if (req.type == FCOperationType::FIND) {
+                        //std::cout << "Pushed req with find type" << std::endl;
+
                         auto it = std::find(stack.rbegin(), stack.rend(), req.key);
                         if (it != stack.rend()) {
                             *(req.result_ptr) = *it;
@@ -194,8 +204,10 @@ private:
                 }
             }
 
+            //std::cout << "Finish ops " << ops << std::endl;
 
             if (ops < FC_THRESHOLD) {
+                //std::cout << "Break" << std::endl;
                 break;  // not enough pending work
             }
         }
