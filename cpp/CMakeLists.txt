@@ -83,6 +83,11 @@ set(QUEUE_DS
     treiber_stack_fc_opt
     stack_nasl_mcs
     stack_global_lock
+
+    queue_global_lock
+    mcs_queue_fc
+    michael_scott_queue_fc
+    michael_scott_queue_lf
 )
 
 add_definitions("-DMAX_THREADS_POW2=2048"
@@ -189,5 +194,5 @@ foreach (DS ${QUEUE_DS})
     target_link_libraries(${DS_RUN} PUBLIC "-latomic")
 
     target_link_libraries(${DS_RUN} PUBLIC nasl Boost::fiber Boost::fiber_numa)
-    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS)
+    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS USE_QUEUE_OPERATIONS)
 endforeach ()

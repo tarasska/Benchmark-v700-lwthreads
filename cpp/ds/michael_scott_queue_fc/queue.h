@@ -17,7 +17,7 @@ typedef intptr_t skey_t;
 
 
 #define CACHE_LINE_SIZE 128
-#define FC_MAX_THREADS  512
+#define FC_MAX_THREADS  2048
 #define FC_TRIES        64
 #define FC_THRESHOLD    2
 
