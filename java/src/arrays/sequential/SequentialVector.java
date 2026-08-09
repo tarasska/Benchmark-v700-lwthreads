@@ -93,7 +93,7 @@ import contention.abstractions.CompositionalSortedSet;
  */
 public class SequentialVector<E>
     extends AbstractList<E>
-    implements List<E>, RandomAccess, Cloneable, java.io.Serializable, CompositionalSortedSet<E>
+    implements List<E>, RandomAccess, Cloneable, java.io.Serializable
 {
     /**
      * The array buffer into which the components of the vector are
@@ -1193,39 +1193,5 @@ public class SequentialVector<E>
         }
     }
 
-	@Override
-	public Comparator<? super E> comparator() {
-		// TODO Auto-generated method stub
-		return null;
-	}
 
-	@Override
-	public E first() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public SortedSet<E> headSet(E arg0) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public E last() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public SortedSet<E> subSet(E arg0, E arg1) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public SortedSet<E> tailSet(E arg0) {
-		// TODO Auto-generated method stub
-		return null;
-	}
 }

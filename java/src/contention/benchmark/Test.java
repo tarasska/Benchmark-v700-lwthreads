@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import java.util.Random;
 //import javafx.util.Pair;
 
+import contention.benchmark.data.sctucrure.QueueDataStructure;
 import contention.benchmark.workload.BenchParameters;
 import contention.benchmark.workload.Parameters;
 import contention.benchmark.workload.thread.loops.abstractions.ThreadLoop;
@@ -34,7 +35,7 @@ public class Test {
 
 
     public enum Type {
-        INTSET, MAP, SORTEDSET;
+        INTSET, MAP, SORTEDSET, QUEUE;
     }
 
     /**
@@ -101,6 +102,8 @@ public class Test {
 //
 //    public long structMods;
 //    private long getCount;
+
+    private boolean useVirtualThreads = false;
     /**
      * The thread-private PRNG
      */
@@ -140,6 +143,10 @@ public class Test {
                 dataStructure = new SortedSetDataStructure<>((CompositionalSortedSet<Integer>) c.newInstance());
 
                 benchType = Type.SORTEDSET;
+            } else if (CompositionalQueue.class.isAssignableFrom(benchClass)) {
+                dataStructure = new QueueDataStructure((CompositionalQueue<Integer>) c.newInstance());
+
+                benchType = Type.QUEUE;
             }
 
         } catch (Exception e) {
@@ -156,7 +163,9 @@ public class Test {
         Thread[] threads = new Thread[parameters.numThreads];
 
         for (int threadNum = 0; threadNum < parameters.numThreads; threadNum++) {
-            threads[threadNum] = new Thread(threadLoops[threadNum]);
+            threads[threadNum] = useVirtualThreads
+                    ? Thread.ofVirtual().unstarted(threadLoops[threadNum])
+                    : new Thread(threadLoops[threadNum]);
         }
 
         return new Pair<>(threads, threadLoops);
@@ -171,6 +180,7 @@ public class Test {
         instanciateAbstraction(dataStructureClassName);
         this.throughput = new double[parameters.iterations];
         this.benchStatistics = new BenchStatistic[parameters.iterations];
+        this.useVirtualThreads = parameters.useVirtualThreads;
     }
 
     /**
@@ -323,6 +333,7 @@ public class Test {
                 case "-create-default-prefill" -> createDefaultPrefill = true;
                 case "-json-file" -> benchParameters = JsonConverter.fromJson(readJsonFile(args.getNext()));
                 case "-result-file" -> resultStatisticFileName = args.getNext();
+                case "-virtual-threads" -> benchParameters.useVirtualThreads = true;
                 default -> System.err.println("Unexpected option: " + args.getCurrent() + ". Ignoring...");
             }
             args.next();

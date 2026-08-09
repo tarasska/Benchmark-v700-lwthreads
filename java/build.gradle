@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'application'
-    id 'org.jetbrains.kotlin.jvm' version '1.6.20'
+    id 'org.jetbrains.kotlin.jvm' version '2.3.0'
 }
 
 group 'org.example'
@@ -13,7 +13,7 @@ repositories {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
@@ -24,7 +24,7 @@ jar {
 }
 
 application {
-    mainClassName = 'contention.benchmark.Test'
+    mainClass = 'contention.benchmark.Test'
 }
 
 tasks.register('toJson', JavaExec) {

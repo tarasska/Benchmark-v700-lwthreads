@@ -15,6 +15,7 @@ public class BenchParameters {
     public long afterPrefillDuration = 1000;
     public long afterWarmUpDuration = 0;
     public long betweenIterationsDuration = 100;
+    public boolean useVirtualThreads = false;
 
 
     public Parameters test;

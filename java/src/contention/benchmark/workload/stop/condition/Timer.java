@@ -23,7 +23,7 @@ public class Timer implements StopCondition {
     @Override
     public void start(int numThreads) {
         stop = new AtomicBoolean(false);
-        java.util.Timer timer = new java.util.Timer();
+        java.util.Timer timer = new java.util.Timer(true);
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
