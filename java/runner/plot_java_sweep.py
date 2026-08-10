@@ -3,8 +3,8 @@
 plot_java_sweep.py — plot Java benchmark sweep results.
 
 Reads the layout produced by run_java_sweep.sh:
-  results_dir/v1/<DsShortName>/result_t<T>.json
-  results_dir/v2/<DsShortName>/result_t<T>.json
+  results_dir/v1/<DsShortName>/result_cops<T>.json
+  results_dir/v2/<DsShortName>/result_cops<T>.json
   ...
 
 The Java result JSON is an array (one element per iteration).
@@ -59,7 +59,7 @@ plt.rcParams.update({
     "figure.dpi":        150,
 })
 
-RESULT_PAT = re.compile(r"result_t(\d+)\.json")   # threads, not cops
+RESULT_PAT = re.compile(r"result_cops(\d+)\.json")   # threads, not cops
 RUN_PAT    = re.compile(r"^v\d+$")
 
 AGG_FUNCS = {
@@ -132,7 +132,7 @@ def parse_java_result(path, n_threads):
 
 def load_ds_dir(ds_dir):
     records = []
-    for p in sorted(ds_dir.glob("result_t*.json")):
+    for p in sorted(ds_dir.glob("result_cops*.json")):
         m = RESULT_PAT.match(p.name)
         if not m:
             continue
