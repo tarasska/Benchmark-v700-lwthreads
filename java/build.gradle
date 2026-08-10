@@ -17,6 +17,10 @@ java {
     }
 }
 
+compileJava {
+    options.compilerArgs.add('--add-exports=java.base/jdk.internal.vm.annotation=ALL-UNNAMED')
+}
+
 jar {
     manifest {
         attributes "Main-Class": "contention.benchmark.Test"
@@ -35,8 +39,9 @@ tasks.register('toJson', JavaExec) {
 
 run {
     if (project.hasProperty("maxCores")) {
-        jvmArgs "-XX:ActiveProcessorCount=${project.property('maxCores')}"
+        jvmArgs("-XX:ActiveProcessorCount=${project.property('maxCores')}")
     }
+    jvmArgs("-XX:-RestrictContended")
 }
 
 sourceSets {

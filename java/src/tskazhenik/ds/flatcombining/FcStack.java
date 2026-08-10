@@ -151,6 +151,7 @@ public class FcStack implements CompositionalQueue<Integer> {
         FINISHED
     }
 
+    @jdk.internal.vm.annotation.Contended
     private static class FcRequest {
         volatile FCOperationType type = FCOperationType.NONE;
         volatile Integer value = 0;
