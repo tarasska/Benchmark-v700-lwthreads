@@ -16,9 +16,7 @@ public class TreiberStack implements CompositionalQueue<Integer> {
         int iteration = 0;
         while (true) {
             var top = stack.get();
-            if (top != null) {
-                newNode.next = top.next;
-            }
+            newNode.next = top;
             if (stack.compareAndSet(top, newNode)) {
                 return true;
             }

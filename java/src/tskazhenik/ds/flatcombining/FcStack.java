@@ -1,7 +1,6 @@
 package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
-import tskazhenik.util.SpinUtil;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -16,7 +15,7 @@ public class FcStack implements CompositionalQueue<Integer> {
 
     private final ReentrantLock lock;
 
-    private final ArrayList<FcRequest> fcRequestSlots;
+    private final FcRequest[] fcRequestSlots;
     private final AtomicInteger firstNotUsedSlotIdx;
 
     private final Deque<Integer> stack;
@@ -25,15 +24,15 @@ public class FcStack implements CompositionalQueue<Integer> {
 
     public FcStack() {
         this.lock = new ReentrantLock();
-        this.fcRequestSlots = new ArrayList<>(MAX_THREADS);
+        this.fcRequestSlots = new FcRequest[MAX_THREADS];
         this.firstNotUsedSlotIdx = new AtomicInteger(0);
         this.stack = new ArrayDeque<>();
 
         for (int i = 0; i < MAX_THREADS; i++) {
-            fcRequestSlots.add(new FcRequest());
+            fcRequestSlots[i] = new FcRequest();
         }
 
-        this.fcRequest= ThreadLocal.withInitial(() -> fcRequestSlots.get(firstNotUsedSlotIdx.getAndIncrement()));
+        this.fcRequest= ThreadLocal.withInitial(() -> fcRequestSlots[firstNotUsedSlotIdx.getAndIncrement()]);
     }
 
     @Override
@@ -91,9 +90,8 @@ public class FcStack implements CompositionalQueue<Integer> {
                 }
                 return;
             } else {
-                int iterations = 0;
                 while (req.status != FCStatus.FINISHED && lock.isLocked()) {
-                    SpinUtil.wait(++iterations);
+                    Thread.yield();
                 }
 
                 if (req.status == FCStatus.FINISHED) {
@@ -108,7 +106,7 @@ public class FcStack implements CompositionalQueue<Integer> {
         for (int t = 0; t < FC_ATTEMPTS; ++t) {
             int ops = 0;
             for (int i = 0; i < registeredThreadsCount; i++) {
-                var req = fcRequestSlots.get(i);
+                var req = fcRequestSlots[i];
 
                 if (req.status == FCStatus.PUSHED) {
                     ++ops;

@@ -33,6 +33,12 @@ tasks.register('toJson', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
 }
 
+run {
+    if (project.hasProperty("maxCores")) {
+        jvmArgs "-XX:ActiveProcessorCount=${project.property('maxCores')}"
+    }
+}
+
 sourceSets {
     main {
         java {

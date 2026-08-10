@@ -244,7 +244,7 @@ def setup_xaxis(ax, ticks):
         ax.set_xscale("log", base=2)
         ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.set_xticks(ticks)
-    ax.set_xlabel("OS threads", fontsize=10)
+    ax.set_xlabel("threads", fontsize=10)
 
 
 def band_label(agg):

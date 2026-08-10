@@ -314,6 +314,7 @@ public class Test {
     }
 
     public static void main(String[] rowArgs) throws IOException, InterruptedException {
+        System.out.println("CORES: " + Runtime.getRuntime().availableProcessors());
         ParseArgument args = new ParseArgument(rowArgs);
         Test test;
 

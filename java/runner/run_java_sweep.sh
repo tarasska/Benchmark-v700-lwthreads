@@ -24,11 +24,12 @@ trap 'echo ""; echo "Interrupted — killing process group $_pgid..."; kill -- -
 # ── defaults ──────────────────────────────────────────────────────────────────
 DS_LIST=""
 THREADS="1 2 4 8 16"
+CORES=$(nproc)
 TIME_MS=10000
 RANGE=2048
 PREFILL_OPS=1024
-INSERT_RATIO=0.1
-REMOVE_RATIO=0.1
+INSERT_RATIO=0.5
+REMOVE_RATIO=0.5
 REPEATS=1
 CONFIG_DIR="sweep_results/config"
 RESULTS_DIR="sweep_results/output"
@@ -41,6 +42,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --ds)            DS_LIST="$2";       shift 2 ;;
     --threads)       THREADS="$2";       shift 2 ;;
+    --cores)         CORES="$2";         shift 2 ;;
     --time-ms)       TIME_MS="$2";       shift 2 ;;
     --range)         RANGE="$2";         shift 2 ;;
     --prefill-ops)   PREFILL_OPS="$2";   shift 2 ;;
@@ -159,7 +161,7 @@ for REP in $(seq 1 "$REPEATS"); do
       EXTRA_ARGS=""
       $VIRTUAL_THREADS && EXTRA_ARGS="-virtual-threads"
 
-      "$GRADLEW" -p "$JAVA_DIR" run -q \
+      "$GRADLEW" -p "$JAVA_DIR" run -q -PmaxCores=$CORES \
         --args="-ds $DS -json-file $(realpath $CONFIG) -result-file $(realpath $RESULT) $EXTRA_ARGS" \
         2>/dev/null
       EXIT=$?
