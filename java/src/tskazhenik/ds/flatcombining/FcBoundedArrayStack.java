@@ -2,30 +2,33 @@ package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class FcStack implements CompositionalQueue<Integer> {
+public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
     private static final int MAX_THREADS = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
+
+    private static final int MAX_ELEMENTS = 1_000_000;
 
     private final ReentrantLock lock;
 
     private final FcRequest[] fcRequestSlots;
     private final AtomicInteger firstNotUsedSlotIdx;
 
-    private final Deque<Integer> stack;
+    private final Integer[] stack;
+    private int topIdx;
 
     private final ThreadLocal<FcRequest> fcRequest;
 
-    public FcStack() {
+    public FcBoundedArrayStack() {
         this.lock = new ReentrantLock();
         this.fcRequestSlots = new FcRequest[MAX_THREADS];
-        this.firstNotUsedSlotIdx = new AtomicInteger(100_000);
-        this.stack = new ArrayDeque<>();
+        this.firstNotUsedSlotIdx = new AtomicInteger(0);
+        this.stack = new Integer[MAX_ELEMENTS];
+        this.topIdx = 0;
 
         for (int i = 0; i < MAX_THREADS; i++) {
             fcRequestSlots[i] = new FcRequest();
@@ -42,7 +45,7 @@ public class FcStack implements CompositionalQueue<Integer> {
 
         handleRequest(req);
 
-        return true;
+        return req.value != null;
     }
 
     @Override
@@ -69,12 +72,11 @@ public class FcStack implements CompositionalQueue<Integer> {
 
     @Override
     public int size() {
-        return stack.size();
+        return topIdx;
     }
 
     @Override
     public void clear() {
-        stack.clear();
     }
 
     private void handleRequest(FcRequest req) {
@@ -111,18 +113,30 @@ public class FcStack implements CompositionalQueue<Integer> {
                     ++ops;
 
                     if (req.type == FCOperationType.PUSH) {
-
-                        stack.push(req.value);
+                        if (topIdx < MAX_ELEMENTS) {
+                            stack[topIdx] = req.value;
+                            topIdx++;
+                        } else {
+                            req.value = null;
+                        }
                     } else if (req.type == FCOperationType.POP) {
 
-                        if (stack.isEmpty()) {
+                        if (topIdx == 0) {
                             req.value = null;
                         } else {
-                            req.value = stack.pop();
+                            req.value = stack[topIdx - 1];
+                            topIdx--;
                         }
                     } else if (req.type == FCOperationType.CONTAINS) {
 
-                        if (!stack.contains(req.value)) {
+                        boolean contains = false;
+                        for (int j = topIdx - 1; j >= 0; j--) {
+                            if (Objects.equals(stack[j], req.value)) {
+                                contains = true;
+                                break;
+                            }
+                        }
+                        if (!contains) {
                             req.value = null;
                         }
                     }
