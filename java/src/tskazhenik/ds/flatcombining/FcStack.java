@@ -24,8 +24,8 @@ public class FcStack implements CompositionalQueue<Integer> {
     public FcStack() {
         this.lock = new ReentrantLock();
         this.fcRequestSlots = new FcRequest[MAX_THREADS];
-        this.firstNotUsedSlotIdx = new AtomicInteger(100_000);
-        this.stack = new ArrayDeque<>();
+        this.firstNotUsedSlotIdx = new AtomicInteger(0);
+        this.stack = new ArrayDeque<>(100_000);
 
         for (int i = 0; i < MAX_THREADS; i++) {
             fcRequestSlots[i] = new FcRequest();
