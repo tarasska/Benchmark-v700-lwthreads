@@ -31,7 +31,7 @@ public class FcStack implements CompositionalQueue<Integer> {
             fcRequestSlots[i] = new FcRequest();
         }
 
-        this.fcRequest= ThreadLocal.withInitial(() -> fcRequestSlots[firstNotUsedSlotIdx.getAndIncrement()]);
+        this.fcRequest = ThreadLocal.withInitial(() -> fcRequestSlots[firstNotUsedSlotIdx.getAndIncrement()]);
     }
 
     @Override

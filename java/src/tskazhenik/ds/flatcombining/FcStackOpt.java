@@ -1,45 +1,35 @@
 package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
+import tskazhenik.GlobalScopedValues;
+import tskazhenik.util.TTASLock;
 
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.ArrayDeque;
 
-public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
-    private static final int MAX_THREADS = 2048;
+public class FcStackOpt implements CompositionalQueue<Integer> {
+    private static final int THREADS_LIMIT = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
 
-    private static final int MAX_ELEMENTS = 1_000_000;
-
-    private final ReentrantLock lock;
+    private final TTASLock lock;
 
     private final FcRequest[] fcRequestSlots;
-    private final AtomicInteger firstNotUsedSlotIdx;
 
-    private final Integer[] stack;
-    private int topIdx;
+    private final ArrayDeque<Integer> stack;
 
-    private final ThreadLocal<FcRequest> fcRequest;
+    public FcStackOpt() {
+        this.lock = new TTASLock();
+        this.fcRequestSlots = new FcRequest[THREADS_LIMIT];
+        this.stack = new ArrayDeque<>(100_000);
 
-    public FcBoundedArrayStack() {
-        this.lock = new ReentrantLock();
-        this.fcRequestSlots = new FcRequest[MAX_THREADS];
-        this.firstNotUsedSlotIdx = new AtomicInteger(0);
-        this.stack = new Integer[MAX_ELEMENTS];
-        this.topIdx = 0;
-
-        for (int i = 0; i < MAX_THREADS; i++) {
+        for (int i = 0; i < THREADS_LIMIT; i++) {
             fcRequestSlots[i] = new FcRequest();
         }
-
-        this.fcRequest= ThreadLocal.withInitial(() -> fcRequestSlots[firstNotUsedSlotIdx.getAndIncrement()]);
     }
 
     @Override
     public boolean push(Integer value) {
-        var req = fcRequest.get();
+        var req = fcRequestSlots[GlobalScopedValues.THREAD_ID.get()];
         req.value = value;
         req.type = FCOperationType.PUSH;
 
@@ -50,7 +40,7 @@ public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
 
     @Override
     public Integer pop() {
-        var req = fcRequest.get();
+        var req = fcRequestSlots[GlobalScopedValues.THREAD_ID.get()];
         req.value = null;
         req.type = FCOperationType.POP;
 
@@ -61,7 +51,7 @@ public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
 
     @Override
     public boolean contains(Integer value) {
-        var req = fcRequest.get();
+        var req = fcRequestSlots[GlobalScopedValues.THREAD_ID.get()];
         req.value = value;
         req.type = FCOperationType.CONTAINS;
 
@@ -72,7 +62,7 @@ public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
 
     @Override
     public int size() {
-        return topIdx;
+        return stack.size();
     }
 
     @Override
@@ -103,7 +93,7 @@ public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
     }
 
     void combine() {
-        var registeredThreadsCount = firstNotUsedSlotIdx.get();
+        var registeredThreadsCount = GlobalScopedValues.MAX_THREADS.get();
         for (int t = 0; t < FC_ATTEMPTS; ++t) {
             int ops = 0;
             for (int i = 0; i < registeredThreadsCount; i++) {
@@ -113,30 +103,18 @@ public class FcBoundedArrayStack implements CompositionalQueue<Integer> {
                     ++ops;
 
                     if (req.type == FCOperationType.PUSH) {
-                        if (topIdx < MAX_ELEMENTS) {
-                            stack[topIdx] = req.value;
-                            topIdx++;
-                        } else {
-                            req.value = null;
-                        }
+
+                        stack.push(req.value);
                     } else if (req.type == FCOperationType.POP) {
 
-                        if (topIdx == 0) {
+                        if (stack.isEmpty()) {
                             req.value = null;
                         } else {
-                            req.value = stack[topIdx - 1];
-                            topIdx--;
+                            req.value = stack.pop();
                         }
                     } else if (req.type == FCOperationType.CONTAINS) {
 
-                        boolean contains = false;
-                        for (int j = topIdx - 1; j >= 0; j--) {
-                            if (Objects.equals(stack[j], req.value)) {
-                                contains = true;
-                                break;
-                            }
-                        }
-                        if (!contains) {
+                        if (!stack.contains(req.value)) {
                             req.value = null;
                         }
                     }

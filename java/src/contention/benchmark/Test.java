@@ -20,6 +20,7 @@ import contention.benchmark.tools.Pair;
 import contention.benchmark.statistic.BenchStatistic;
 import contention.benchmark.statistic.STMStatistics;
 import contention.benchmark.statistic.ThreadStatistic;
+import tskazhenik.GlobalScopedValues;
 
 import static contention.benchmark.tools.StringFormat.*;
 
@@ -163,9 +164,16 @@ public class Test {
         Thread[] threads = new Thread[parameters.numThreads];
 
         for (int threadNum = 0; threadNum < parameters.numThreads; threadNum++) {
+            final int threadId = threadNum;
+            Runnable threadRunnable = () -> {
+                ScopedValue
+                        .where(GlobalScopedValues.MAX_THREADS, parameters.numThreads)
+                        .where(GlobalScopedValues.THREAD_ID, threadId)
+                        .run(threadLoops[threadId]);
+            };
             threads[threadNum] = useVirtualThreads
-                    ? Thread.ofVirtual().unstarted(threadLoops[threadNum])
-                    : new Thread(threadLoops[threadNum]);
+                    ? Thread.ofVirtual().unstarted(threadRunnable)
+                    : Thread.ofPlatform().unstarted(threadRunnable);
         }
 
         return new Pair<>(threads, threadLoops);
