@@ -2,19 +2,23 @@ package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
 import tskazhenik.GlobalScopedValues;
+import tskazhenik.util.SpinUtil;
 import tskazhenik.util.TTASLock;
 
 import java.util.ArrayDeque;
 
 public class FcStackOpt implements CompositionalQueue<Integer> {
     private static final int THREADS_LIMIT = 2048;
-    private static final int FC_ATTEMPTS = 16;
+    private static final int FC_ATTEMPTS = 8;
     private static final int FC_THRESHOLD = 2;
 
+    @jdk.internal.vm.annotation.Contended
     private final TTASLock lock;
 
+    @jdk.internal.vm.annotation.Contended
     private final FcRequest[] fcRequestSlots;
 
+    @jdk.internal.vm.annotation.Contended
     private final ArrayDeque<Integer> stack;
 
     public FcStackOpt() {
@@ -81,8 +85,9 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
                 }
                 return;
             } else {
+                int iteration = 0;
                 while (req.status != FCStatus.FINISHED && lock.isLocked()) {
-                    Thread.yield();
+                    SpinUtil.wait(++iteration);
                 }
 
                 if (req.status == FCStatus.FINISHED) {
@@ -144,8 +149,11 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
 
     @jdk.internal.vm.annotation.Contended
     private static class FcRequest {
+        @jdk.internal.vm.annotation.Contended
         volatile FCOperationType type = FCOperationType.NONE;
+        @jdk.internal.vm.annotation.Contended
         volatile Integer value = 0;
+        @jdk.internal.vm.annotation.Contended
         volatile FCStatus status = FCStatus.EMPTY;
     }
 }

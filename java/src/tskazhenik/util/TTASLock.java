@@ -19,7 +19,7 @@ public class TTASLock {
     }
 
     public boolean tryLock() {
-        return !locked.getPlain() && locked.weakCompareAndSetAcquire(false, true);
+        return !locked.getPlain() && locked.compareAndExchangeAcquire(false, true);
     }
 
     public boolean isLocked() {
