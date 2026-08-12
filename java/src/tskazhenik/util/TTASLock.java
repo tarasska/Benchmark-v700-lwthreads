@@ -5,21 +5,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TTASLock {
     private final AtomicBoolean locked = new AtomicBoolean(false);
 
-    public void lock() {
-        int iteration = 0;
-        while (true) {
-            while (locked.getAcquire()) {
-                SpinUtil.wait(++iteration);
-            }
-
-            if (!locked.weakCompareAndSetAcquire(false, true)) {
-                return;
-            }
-        }
-    }
-
     public boolean tryLock() {
-        return !locked.getPlain() && locked.compareAndExchangeAcquire(false, true);
+        return !locked.getAcquire() && locked.weakCompareAndSetAcquire(false, true);
     }
 
     public boolean isLocked() {

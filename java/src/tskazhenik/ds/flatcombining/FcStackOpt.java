@@ -6,6 +6,7 @@ import tskazhenik.util.SpinUtil;
 import tskazhenik.util.TTASLock;
 
 import java.util.ArrayDeque;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class FcStackOpt implements CompositionalQueue<Integer> {
     private static final int THREADS_LIMIT = 2048;
@@ -149,11 +150,8 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
 
     @jdk.internal.vm.annotation.Contended
     private static class FcRequest {
-        @jdk.internal.vm.annotation.Contended
-        volatile FCOperationType type = FCOperationType.NONE;
-        @jdk.internal.vm.annotation.Contended
-        volatile Integer value = 0;
-        @jdk.internal.vm.annotation.Contended
+        FCOperationType type = FCOperationType.NONE;
+        Integer value = 0;
         volatile FCStatus status = FCStatus.EMPTY;
     }
 }

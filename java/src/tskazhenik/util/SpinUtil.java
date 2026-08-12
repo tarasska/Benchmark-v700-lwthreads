@@ -15,7 +15,7 @@ public class SpinUtil {
     }
 
     private static void spin(int iteration) {
-        int spins = BASE_SPIN_COUNT * (1 << iteration);
+        int spins = Math.min(BASE_SPIN_COUNT * (1 << iteration), MAX_SPIN_COUNT);
         for (int i = 0; i < spins; i++) {
             Thread.onSpinWait();
         }
