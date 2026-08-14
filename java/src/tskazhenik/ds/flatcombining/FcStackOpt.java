@@ -2,11 +2,11 @@ package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
 import tskazhenik.GlobalScopedValues;
-import tskazhenik.util.SpinUtil;
 import tskazhenik.util.TTASLock;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class FcStackOpt implements CompositionalQueue<Integer> {
     private static final int THREADS_LIMIT = 2048;
@@ -75,7 +75,7 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
     }
 
     private void handleRequest(FcRequest req) {
-        req.status = FCStatus.PUSHED;
+        req.publish();
 
         while (true) {
             if (lock.tryLock()) {
@@ -86,12 +86,11 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
                 }
                 return;
             } else {
-                int iteration = 0;
-                while (req.status != FCStatus.FINISHED && lock.isLocked()) {
-                    SpinUtil.wait(++iteration);
+                while (req.isPublished() && lock.isLocked()) {
+                    Thread.yield();
                 }
 
-                if (req.status == FCStatus.FINISHED) {
+                if (!req.isPublished()) {
                     return;
                 }
             }
@@ -105,7 +104,7 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
             for (int i = 0; i < registeredThreadsCount; i++) {
                 var req = fcRequestSlots[i];
 
-                if (req.status == FCStatus.PUSHED) {
+                if (req.isPublished()) {
                     ++ops;
 
                     if (req.type == FCOperationType.PUSH) {
@@ -125,7 +124,7 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
                         }
                     }
 
-                    req.status = FCStatus.FINISHED;
+                    req.markFinished();
                 }
             }
 
@@ -150,8 +149,37 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
 
     @jdk.internal.vm.annotation.Contended
     private static class FcRequest {
+        @jdk.internal.vm.annotation.Contended
         FCOperationType type = FCOperationType.NONE;
+
+        @jdk.internal.vm.annotation.Contended
         Integer value = 0;
-        volatile FCStatus status = FCStatus.EMPTY;
+
+        @jdk.internal.vm.annotation.Contended
+        boolean published = false;
+
+        public void publish() {
+            PUBLISHED_HANDLE.setRelease(this, true);
+        }
+
+        public void markFinished() {
+            PUBLISHED_HANDLE.setRelease(this, false);
+        }
+
+        public boolean isPublished() {
+            return (boolean) PUBLISHED_HANDLE.getAcquire(this);
+        }
+
+        private static final VarHandle PUBLISHED_HANDLE;
+
+        static {
+            try {
+                // Find an instance field VarHandle using Lookup
+                PUBLISHED_HANDLE = MethodHandles.lookup()
+                        .findVarHandle(FcRequest.class, "published", boolean.class);
+            } catch (ReflectiveOperationException e) {
+                throw new Error(e);
+            }
+        }
     }
 }
