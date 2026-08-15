@@ -264,7 +264,7 @@ def _draw(ax, x, y, y_lo, y_hi, color, marker, multi, **line_kwargs):
 
 # ── plots ─────────────────────────────────────────────────────────────────────
 
-def plot_throughput(targets, output_dir, agg, multi):
+def plot_throughput(targets, output_dir, agg, multi, thread_type):
     fig, ax = plt.subplots(figsize=(9, 5))
     for i, (ds, records) in enumerate(targets.items()):
         x    = [r["threads"]                  for r in records]
@@ -279,7 +279,7 @@ def plot_throughput(targets, output_dir, agg, multi):
     setup_xaxis(ax, ticks)
     ax.set_ylabel("throughput  (ops / s)", fontsize=10)
     agg_note = " [{}{}]".format(agg, " " + band_label(agg) if band_label(agg) else "") if multi else ""
-    ax.set_title("Java throughput vs threads" + agg_note, fontsize=11, fontweight="bold")
+    ax.set_title(f"Java throughput vs {thread_type} threads" + agg_note, fontsize=11, fontweight="bold")
     ax.legend(framealpha=0.4, fontsize=9)
     style_ax(ax)
     fig.tight_layout()
@@ -419,6 +419,7 @@ Examples:
     parser.add_argument("--ds", nargs="*", default=[])
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--stat", nargs="+", default=ALL_STATS, choices=ALL_STATS)
+    parser.add_argument("--thread-type", default="unknown", choices=["unknown", "os", "virtual"])
     args = parser.parse_args()
 
     if not args.results_dir.is_dir():
@@ -445,7 +446,7 @@ Examples:
     print()
 
     stat_set = set(args.stat)
-    if "throughput"    in stat_set: plot_throughput(targets, output_dir, args.agg, multi)
+    if "throughput"    in stat_set: plot_throughput(targets, output_dir, args.agg, multi, args.thread_type)
     if "ops_breakdown" in stat_set: plot_ops_breakdown(targets, output_dir, args.agg, multi)
     if "per_thread"    in stat_set: plot_per_thread_boxplot(targets, output_dir)
     if "summary"       in stat_set: print_summary(targets, output_dir, args.agg, multi)

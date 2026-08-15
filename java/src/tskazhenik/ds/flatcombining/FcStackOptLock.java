@@ -8,7 +8,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
 
-public class FcStackOpt implements CompositionalQueue<Integer> {
+public class FcStackOptLock implements CompositionalQueue<Integer>  {
     private static final int THREADS_LIMIT = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
@@ -22,7 +22,7 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
     @jdk.internal.vm.annotation.Contended
     private final ArrayDeque<Integer> stack;
 
-    public FcStackOpt() {
+    public FcStackOptLock() {
         this.lock = new TTASLock();
         this.fcRequestSlots = new FcRequest[THREADS_LIMIT];
         this.stack = new ArrayDeque<>(100_000);
@@ -86,7 +86,12 @@ public class FcStackOpt implements CompositionalQueue<Integer> {
                 }
                 return;
             } else {
-                while (req.isPublished() && lock.isLocked()) {
+                int iterations = 0;
+                while (req.isPublished()) {
+                    iterations = (iterations + 1) % 16;
+                    if (iterations == 0 && !lock.isLocked()) {
+                        break;
+                    }
                     Thread.yield();
                 }
 

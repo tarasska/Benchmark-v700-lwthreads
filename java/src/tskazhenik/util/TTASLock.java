@@ -6,7 +6,7 @@ public class TTASLock {
     private final AtomicBoolean locked = new AtomicBoolean(false);
 
     public boolean tryLock() {
-        return !locked.getAcquire() && locked.weakCompareAndSetAcquire(false, true);
+        return !locked.compareAndExchangeAcquire(false, true);
     }
 
     public boolean isLocked() {

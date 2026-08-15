@@ -60,6 +60,8 @@ public class DefaultThreadLoop extends ThreadLoop {
             int key = argsGenerator.nextGet();
             executeGet(key);
         }
+
+        Thread.yield();
     }
 
 }

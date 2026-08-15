@@ -100,10 +100,28 @@ make_config() {
     ]
   },
   "warmUp": {
-    "numThreads": 0,
+    "numThreads": $T,
     "maxAwaitTime": 0,
-    "stopCondition": { "workTime": 0, "ClassName": "Timer" },
-    "threadLoopBuilders": []
+    "stopCondition": { "workTime": 3000, "ClassName": "Timer" },
+    "threadLoopBuilders": [
+      {
+        "quantity": $T,
+        "threadLoopBuilder": {
+          "parameters": {
+            "insertRatio": $INSERT_RATIO,
+            "removeRatio": $REMOVE_RATIO,
+            "writeAllsRatio": 0.0,
+            "snapshotsRatio": 0.0
+          },
+          "argsGeneratorBuilder": {
+            "distributionBuilder": { "ClassName": "UniformDistributionBuilder" },
+            "dataMapBuilder": { "id": 1, "ClassName": "ArrayDataMapBuilder" },
+            "ClassName": "DefaultArgsGeneratorBuilder"
+          },
+          "ClassName": "DefaultThreadLoopBuilder"
+        }
+      }
+    ]
   },
   "test": {
     "numThreads": $T,
