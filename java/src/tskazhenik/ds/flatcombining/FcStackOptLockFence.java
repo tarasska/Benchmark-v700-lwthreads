@@ -137,9 +137,6 @@ public class FcStackOptLockFence implements CompositionalQueue<Integer>  {
             if (ops < FC_THRESHOLD) {
                 break;  // not enough pending work
             }
-            if (t + 1 != FC_ATTEMPTS) {
-                Thread.yield();
-            }
         }
     }
 
@@ -148,12 +145,6 @@ public class FcStackOptLockFence implements CompositionalQueue<Integer>  {
         PUSH,
         POP,
         CONTAINS
-    }
-
-    enum FCStatus  {
-        EMPTY ,
-        PUSHED,
-        FINISHED
     }
 
     @jdk.internal.vm.annotation.Contended

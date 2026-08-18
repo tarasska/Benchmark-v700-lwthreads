@@ -4,11 +4,10 @@ import contention.abstractions.CompositionalQueue;
 import tskazhenik.GlobalScopedValues;
 import tskazhenik.util.TTASLock;
 
-import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
 
-public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
+public class FcStackOptLockFenceEach implements CompositionalQueue<Integer>  {
     private static final int THREADS_LIMIT = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
@@ -22,10 +21,10 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     @jdk.internal.vm.annotation.Contended
     private final ArrayDeque<Integer> stack;
 
-    public FcStackOptLockBackoffNotC() {
+    public FcStackOptLockFenceEach() {
         this.lock = new TTASLock();
         this.fcRequestSlots = new FcRequest[THREADS_LIMIT];
-        this.stack = new ArrayDeque<>(100_000);
+        this.stack = new ArrayDeque<>(1_000_000);
 
         for (int i = 0; i < THREADS_LIMIT; i++) {
             fcRequestSlots[i] = new FcRequest();
@@ -75,7 +74,8 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     }
 
     private void handleRequest(FcRequest req) {
-        req.publish();
+        req.published = true;
+        VarHandle.releaseFence();
 
         while (true) {
             if (lock.tryLock()) {
@@ -87,22 +87,16 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
                 return;
             } else {
                 int iterations = 0;
-                while (req.isPublished()) {
+                while (req.published) {
                     iterations = (iterations + 1) % 16;
-                    if (iterations == 0) {
-                        if (!lock.isLocked()) {
-                            break;
-                        } else {
-                            Thread.yield();
-                        }
-                    } else {
-                        for (int i = 0; i < Math.min(1 << iterations, 1024); i++) {
-                            Thread.onSpinWait();
-                        }
+                    if (iterations == 0 && !lock.isLocked()) {
+                        break;
                     }
+                    Thread.yield();
+                    VarHandle.acquireFence();
                 }
 
-                if (!req.isPublished()) {
+                if (!req.published) {
                     return;
                 }
             }
@@ -112,11 +106,12 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     void combine() {
         var registeredThreadsCount = GlobalScopedValues.MAX_THREADS.get();
         for (int t = 0; t < FC_ATTEMPTS; ++t) {
+            VarHandle.acquireFence();
             int ops = 0;
             for (int i = 0; i < registeredThreadsCount; i++) {
                 var req = fcRequestSlots[i];
 
-                if (req.isPublished()) {
+                if (req.published) {
                     ++ops;
 
                     if (req.type == FCOperationType.PUSH) {
@@ -136,10 +131,10 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
                         }
                     }
 
-                    req.markFinished();
+                    req.published = false;
+                    VarHandle.releaseFence();
                 }
             }
-
             if (ops < FC_THRESHOLD) {
                 break;  // not enough pending work
             }
@@ -153,33 +148,16 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
         CONTAINS
     }
 
+    @jdk.internal.vm.annotation.Contended
     private static class FcRequest {
+        @jdk.internal.vm.annotation.Contended("d")
         FCOperationType type = FCOperationType.NONE;
+
+        @jdk.internal.vm.annotation.Contended("d")
         Integer value = 0;
+
+        @jdk.internal.vm.annotation.Contended("s")
         boolean published = false;
 
-        public void publish() {
-            PUBLISHED_HANDLE.setRelease(this, true);
-        }
-
-        public void markFinished() {
-            PUBLISHED_HANDLE.setRelease(this, false);
-        }
-
-        public boolean isPublished() {
-            return (boolean) PUBLISHED_HANDLE.getAcquire(this);
-        }
-
-        private static final VarHandle PUBLISHED_HANDLE;
-
-        static {
-            try {
-                // Find an instance field VarHandle using Lookup
-                PUBLISHED_HANDLE = MethodHandles.lookup()
-                        .findVarHandle(FcRequest.class, "published", boolean.class);
-            } catch (ReflectiveOperationException e) {
-                throw new Error(e);
-            }
-        }
     }
 }

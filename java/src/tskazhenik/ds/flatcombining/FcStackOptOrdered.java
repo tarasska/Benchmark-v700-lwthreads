@@ -7,8 +7,9 @@ import tskazhenik.util.TTASLock;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
+public class FcStackOptOrdered implements CompositionalQueue<Integer>  {
     private static final int THREADS_LIMIT = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
@@ -20,11 +21,19 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     private final FcRequest[] fcRequestSlots;
 
     @jdk.internal.vm.annotation.Contended
+    private final FcRequest[] fcRequests;
+
+    @jdk.internal.vm.annotation.Contended
+    private final AtomicInteger idx;
+
+    @jdk.internal.vm.annotation.Contended
     private final ArrayDeque<Integer> stack;
 
-    public FcStackOptLockBackoffNotC() {
+    public FcStackOptOrdered() {
         this.lock = new TTASLock();
         this.fcRequestSlots = new FcRequest[THREADS_LIMIT];
+        this.fcRequests = new FcRequest[THREADS_LIMIT];
+        this.idx = new AtomicInteger(0);
         this.stack = new ArrayDeque<>(100_000);
 
         for (int i = 0; i < THREADS_LIMIT; i++) {
@@ -35,6 +44,11 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     @Override
     public boolean push(Integer value) {
         var req = fcRequestSlots[GlobalScopedValues.THREAD_ID.get()];
+        if (req.pos == -1) {
+            req.pos = idx.getAndIncrement();
+            fcRequests[req.pos] = req;
+            VarHandle.releaseFence();
+        }
         req.value = value;
         req.type = FCOperationType.PUSH;
 
@@ -46,6 +60,11 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     @Override
     public Integer pop() {
         var req = fcRequestSlots[GlobalScopedValues.THREAD_ID.get()];
+        if (req.pos == -1) {
+            req.pos = idx.getAndIncrement();
+            fcRequests[req.pos] = req;
+            VarHandle.releaseFence();
+        }
         req.value = null;
         req.type = FCOperationType.POP;
 
@@ -57,6 +76,11 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     @Override
     public boolean contains(Integer value) {
         var req = fcRequestSlots[GlobalScopedValues.THREAD_ID.get()];
+        if (req.pos == -1) {
+            req.pos = idx.getAndIncrement();
+            fcRequests[req.pos] = req;
+            VarHandle.releaseFence();
+        }
         req.value = value;
         req.type = FCOperationType.CONTAINS;
 
@@ -114,9 +138,9 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
         for (int t = 0; t < FC_ATTEMPTS; ++t) {
             int ops = 0;
             for (int i = 0; i < registeredThreadsCount; i++) {
-                var req = fcRequestSlots[i];
+                var req = fcRequests[i];
 
-                if (req.isPublished()) {
+                if (req != null && req.isPublished()) {
                     ++ops;
 
                     if (req.type == FCOperationType.PUSH) {
@@ -154,6 +178,7 @@ public class FcStackOptLockBackoffNotC implements CompositionalQueue<Integer>  {
     }
 
     private static class FcRequest {
+        int pos = -1;
         FCOperationType type = FCOperationType.NONE;
         Integer value = 0;
         boolean published = false;
