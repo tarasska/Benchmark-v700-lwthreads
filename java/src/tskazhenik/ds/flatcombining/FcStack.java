@@ -1,6 +1,7 @@
 package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
+import tskazhenik.GlobalConstants;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -8,7 +9,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class FcStack implements CompositionalQueue<Integer> {
-    private static final int MAX_THREADS = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
 
@@ -23,11 +23,11 @@ public class FcStack implements CompositionalQueue<Integer> {
 
     public FcStack() {
         this.lock = new ReentrantLock();
-        this.fcRequestSlots = new FcRequest[MAX_THREADS];
+        this.fcRequestSlots = new FcRequest[GlobalConstants.THREADS_LIMIT];
         this.firstNotUsedSlotIdx = new AtomicInteger(0);
         this.stack = new ArrayDeque<>(100_000);
 
-        for (int i = 0; i < MAX_THREADS; i++) {
+        for (int i = 0; i < GlobalConstants.THREADS_LIMIT; i++) {
             fcRequestSlots[i] = new FcRequest();
         }
 

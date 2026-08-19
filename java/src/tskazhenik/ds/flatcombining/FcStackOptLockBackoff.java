@@ -1,6 +1,7 @@
 package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
+import tskazhenik.GlobalConstants;
 import tskazhenik.GlobalScopedValues;
 import tskazhenik.util.SpinUtil;
 import tskazhenik.util.TTASLock;
@@ -10,7 +11,6 @@ import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
 
 public class FcStackOptLockBackoff implements CompositionalQueue<Integer>  {
-    private static final int THREADS_LIMIT = 2048;
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
 
@@ -25,10 +25,10 @@ public class FcStackOptLockBackoff implements CompositionalQueue<Integer>  {
 
     public FcStackOptLockBackoff() {
         this.lock = new TTASLock();
-        this.fcRequestSlots = new FcRequest[THREADS_LIMIT];
+        this.fcRequestSlots = new FcRequest[GlobalConstants.THREADS_LIMIT];
         this.stack = new ArrayDeque<>(100_000);
 
-        for (int i = 0; i < THREADS_LIMIT; i++) {
+        for (int i = 0; i < GlobalConstants.THREADS_LIMIT; i++) {
             fcRequestSlots[i] = new FcRequest();
         }
     }
