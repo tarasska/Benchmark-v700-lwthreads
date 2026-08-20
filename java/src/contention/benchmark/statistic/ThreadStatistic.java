@@ -1,5 +1,7 @@
 package contention.benchmark.statistic;
 
+import contention.benchmark.statistic.custom.FcStat;
+
 public class ThreadStatistic {
     /**
      * The total number of operations for all threads
@@ -29,6 +31,8 @@ public class ThreadStatistic {
     public long structMods;
     public long getCount;
 
+    public FcStat fcStat = new FcStat();
+
     public void reset() {
         total = 0;
         numAdd = 0;
@@ -42,6 +46,7 @@ public class ThreadStatistic {
         nodesTraversed = 0;
         structMods = 0;
         getCount = 0;
+        fcStat = new FcStat();
     }
 
     public void add(ThreadStatistic stats) {
@@ -57,6 +62,7 @@ public class ThreadStatistic {
         nodesTraversed += stats.nodesTraversed;
         structMods += stats.structMods;
         getCount += stats.getCount;
+        fcStat.add(stats.fcStat);
     }
 
     public String toString() {

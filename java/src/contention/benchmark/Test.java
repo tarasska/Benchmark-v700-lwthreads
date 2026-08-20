@@ -493,6 +493,9 @@ public class Test {
         curBenchStats.throughput = ((double) curStats.total / elapsedTime);
         curBenchStats.commonStatistic = curStats;
         curBenchStats.effectiveUpdates = curStats.numAdd + curStats.numRemove + curStats.numAddAll + curStats.numRemoveAll;
+        curBenchStats.fcStat = curStats.fcStat;
+        curBenchStats.opsPerCombine = (double) curStats.fcStat.ops / Math.max(1, curStats.fcStat.combines);
+        curBenchStats.nanosPerCombine = (double) curStats.fcStat.combinerTimeNanos / Math.max(1, curStats.fcStat.combines);
 
         throughput[currentIteration] = ((double) curStats.total / elapsedTime);
 

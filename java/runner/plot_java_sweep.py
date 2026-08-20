@@ -44,8 +44,8 @@ import numpy as np
 
 # ── style (identical to plot_sweep.py) ────────────────────────────────────────
 DS_COLORS  = ["#4C8EDA", "#E06C4B", "#3BAA72", "#9B6DD4",
-               "#E0B84B", "#4BC7CE", "#D45E8A", "#7A7A7A"]
-DS_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+               "#E0B84B", "#4BC7CE", "#D45E8A", "#7A7A7A", "#991212", "#080808"]
+DS_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*", ".", "h", "1"]
 GRID_COLOR  = "#E8E8E8"
 SPINE_COLOR = "#CCCCCC"
 

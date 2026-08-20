@@ -1,6 +1,8 @@
 package tskazhenik.ds.flatcombining;
 
 import contention.abstractions.CompositionalQueue;
+import contention.abstractions.FlatCombiningStructure;
+import contention.benchmark.statistic.custom.FcStat;
 import tskazhenik.GlobalConstants;
 
 import java.util.ArrayDeque;
@@ -8,7 +10,7 @@ import java.util.Deque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class FcStack implements CompositionalQueue<Integer> {
+public class FcStack extends FlatCombiningStructure implements CompositionalQueue<Integer> {
     private static final int FC_ATTEMPTS = 16;
     private static final int FC_THRESHOLD = 2;
 
@@ -100,7 +102,8 @@ public class FcStack implements CompositionalQueue<Integer> {
         }
     }
 
-    void combine() {
+    @Override
+    protected void combine(FcStat stats) {
         var registeredThreadsCount = firstNotUsedSlotIdx.get();
         for (int t = 0; t < FC_ATTEMPTS; ++t) {
             int ops = 0;
@@ -131,8 +134,10 @@ public class FcStack implements CompositionalQueue<Integer> {
                 }
             }
 
+            stats.ops += ops;
             if (ops < FC_THRESHOLD) {
-                break;  // not enough pending work
+                stats.attempts += t + 1;
+                return;  // not enough pending work
             }
         }
     }

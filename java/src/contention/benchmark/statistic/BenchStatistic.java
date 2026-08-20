@@ -1,5 +1,7 @@
 package contention.benchmark.statistic;
 
+import contention.benchmark.statistic.custom.FcStat;
+
 import static contention.benchmark.tools.StringFormat.*;
 
 public class BenchStatistic {
@@ -17,6 +19,13 @@ public class BenchStatistic {
     public double elapsedTime;
     public long prefillSize;
 
+    /**
+     * FC
+     */
+    public FcStat fcStat = new FcStat();
+    public double opsPerCombine;
+    public double nanosPerCombine;
+
     public String toString() {
         return toString(1);
     }
@@ -28,6 +37,8 @@ public class BenchStatistic {
                 .append(indentedTitleWithData("Struct Modifications", commonStatistic.structMods, indents))
                 .append(indentedTitleWithData("Throughput (ops/s)", throughput, indents))
                 .append(indentedTitleWithData("Elapsed time (s)", elapsedTime, indents))
+                .append(opsPerCombine == 0 ? "" : indentedTitleWithData("FC opsPerCombine", opsPerCombine, indents))
+                .append(nanosPerCombine == 0 ? "" : indentedTitleWithData("FC nanosPerCombine", nanosPerCombine, indents))
                 .append(indentedTitleWithDataPercent("Operations", commonStatistic.total, 1, indents))
                 .append(indentedTitleWithDataPercent("effective updates",
                         commonStatistic.numAdd + commonStatistic.numRemove

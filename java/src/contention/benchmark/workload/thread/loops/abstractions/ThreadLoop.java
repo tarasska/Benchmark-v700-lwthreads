@@ -2,6 +2,7 @@ package contention.benchmark.workload.thread.loops.abstractions;
 
 import contention.abstractions.CompositionalMap;
 import contention.abstractions.DataStructure;
+import contention.abstractions.FlatCombiningStructure;
 import contention.benchmark.statistic.ThreadStatistic;
 import contention.benchmark.workload.stop.condition.StopCondition;
 
@@ -52,6 +53,11 @@ public abstract class ThreadLoop implements Runnable {
 
             assert stats.total == stats.failures + stats.numContains + stats.numSize + stats.numRemove
                     + stats.numAdd + stats.numRemoveAll + stats.numAddAll;
+        }
+
+        var innerDs = dataStructure.getDataStructure();
+        if (innerDs instanceof FlatCombiningStructure fcDs) {
+            this.stats.fcStat.add(fcDs.getStats());
         }
         // System.out.println(numAdd + " " + numRemove + " " + failures);
         this.stats.getCount = CompositionalMap.counts.get().getCount;
