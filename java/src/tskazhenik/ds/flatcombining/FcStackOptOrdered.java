@@ -13,7 +13,7 @@ import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class FcStackOptOrdered extends FlatCombiningStructure implements CompositionalQueue<Integer>  {
-    private static final int FC_ATTEMPTS = 16;
+    private static final int FC_ATTEMPTS = 4;
     private static final int FC_THRESHOLD = 2;
 
     @jdk.internal.vm.annotation.Contended
@@ -112,20 +112,8 @@ public class FcStackOptOrdered extends FlatCombiningStructure implements Composi
                 }
                 return;
             } else {
-                int iterations = 0;
-                while (req.isPublished()) {
-                    iterations = (iterations + 1) % 16;
-                    if (iterations == 0) {
-                        if (!lock.isLocked()) {
-                            break;
-                        } else {
-                            Thread.yield();
-                        }
-                    } else {
-                        for (int i = 0; i < Math.min(1 << iterations, 1024); i++) {
-                            Thread.onSpinWait();
-                        }
-                    }
+                while (req.isPublished() && lock.isLocked()) {
+                    Thread.yield();
                 }
 
                 if (!req.isPublished()) {

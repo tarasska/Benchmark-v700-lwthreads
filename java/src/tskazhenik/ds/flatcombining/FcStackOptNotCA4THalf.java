@@ -7,12 +7,12 @@ import tskazhenik.GlobalConstants;
 import tskazhenik.GlobalScopedValues;
 import tskazhenik.util.TTASLock;
 
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
 
-public class FcStackOptFence extends FlatCombiningStructure implements CompositionalQueue<Integer>  {
+public class FcStackOptNotCA4THalf extends FlatCombiningStructure implements CompositionalQueue<Integer> {
     private static final int FC_ATTEMPTS = 4;
-    private static final int FC_THRESHOLD = 2;
 
     @jdk.internal.vm.annotation.Contended
     private final TTASLock lock;
@@ -23,7 +23,7 @@ public class FcStackOptFence extends FlatCombiningStructure implements Compositi
     @jdk.internal.vm.annotation.Contended
     private final ArrayDeque<Integer> stack;
 
-    public FcStackOptFence() {
+    public FcStackOptNotCA4THalf() {
         this.lock = new TTASLock();
         this.fcRequestSlots = new FcRequest[GlobalConstants.THREADS_LIMIT];
         this.stack = new ArrayDeque<>(100_000);
@@ -76,8 +76,7 @@ public class FcStackOptFence extends FlatCombiningStructure implements Compositi
     }
 
     private void handleRequest(FcRequest req) {
-        req.published = true;
-        VarHandle.releaseFence();
+        req.publish();
 
         while (true) {
             if (lock.tryLock()) {
@@ -88,13 +87,11 @@ public class FcStackOptFence extends FlatCombiningStructure implements Compositi
                 }
                 return;
             } else {
-                VarHandle.acquireFence();
-                while (req.published && lock.isLocked()) {
+                while (req.isPublished() && lock.isLocked()) {
                     Thread.yield();
-                    VarHandle.acquireFence();
                 }
 
-                if (!req.published) {
+                if (!req.isPublished()) {
                     return;
                 }
             }
@@ -104,13 +101,13 @@ public class FcStackOptFence extends FlatCombiningStructure implements Compositi
     @Override
     protected void combine(FcStat stats) {
         var registeredThreadsCount = GlobalScopedValues.MAX_THREADS.get();
+        var threshold = registeredThreadsCount / 2;
         for (int t = 0; t < FC_ATTEMPTS; ++t) {
             int ops = 0;
             for (int i = 0; i < registeredThreadsCount; i++) {
                 var req = fcRequestSlots[i];
 
-                VarHandle.acquireFence();
-                if (req.published) {
+                if (req.isPublished()) {
                     ++ops;
 
                     if (req.type == FCOperationType.PUSH) {
@@ -130,13 +127,12 @@ public class FcStackOptFence extends FlatCombiningStructure implements Compositi
                         }
                     }
 
-                    req.published = false;
-                    VarHandle.releaseFence();
+                    req.markFinished();
                 }
             }
 
             stats.ops += ops;
-            if (ops < FC_THRESHOLD) {
+            if (ops < threshold) {
                 stats.attempts += t + 1;
                 return;  // not enough pending work
             }
@@ -150,10 +146,39 @@ public class FcStackOptFence extends FlatCombiningStructure implements Compositi
         CONTAINS
     }
 
-    @jdk.internal.vm.annotation.Contended
+    enum FCStatus  {
+        EMPTY ,
+        PUSHED,
+        FINISHED
+    }
+
     private static class FcRequest {
         FCOperationType type = FCOperationType.NONE;
         Integer value = 0;
         boolean published = false;
+
+        public void publish() {
+            PUBLISHED_HANDLE.setRelease(this, true);
+        }
+
+        public void markFinished() {
+            PUBLISHED_HANDLE.setRelease(this, false);
+        }
+
+        public boolean isPublished() {
+            return (boolean) PUBLISHED_HANDLE.getAcquire(this);
+        }
+
+        private static final VarHandle PUBLISHED_HANDLE;
+
+        static {
+            try {
+                // Find an instance field VarHandle using Lookup
+                PUBLISHED_HANDLE = MethodHandles.lookup()
+                        .findVarHandle(FcRequest.class, "published", boolean.class);
+            } catch (ReflectiveOperationException e) {
+                throw new Error(e);
+            }
+        }
     }
 }

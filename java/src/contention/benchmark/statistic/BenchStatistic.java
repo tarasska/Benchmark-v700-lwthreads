@@ -2,6 +2,8 @@ package contention.benchmark.statistic;
 
 import contention.benchmark.statistic.custom.FcStat;
 
+import java.util.Map;
+
 import static contention.benchmark.tools.StringFormat.*;
 
 public class BenchStatistic {
@@ -25,6 +27,8 @@ public class BenchStatistic {
     public FcStat fcStat = new FcStat();
     public double opsPerCombine;
     public double nanosPerCombine;
+    public double attemptsPerCombine;
+    public Map<String, Double> custom;
 
     public String toString() {
         return toString(1);

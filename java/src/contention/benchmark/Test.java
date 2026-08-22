@@ -5,10 +5,12 @@ import contention.abstractions.*;
 import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Random;
 //import javafx.util.Pair;
 
 import contention.benchmark.data.sctucrure.QueueDataStructure;
+import contention.benchmark.statistic.StatsCalculator;
 import contention.benchmark.workload.BenchParameters;
 import contention.benchmark.workload.Parameters;
 import contention.benchmark.workload.thread.loops.abstractions.ThreadLoop;
@@ -496,6 +498,8 @@ public class Test {
         curBenchStats.fcStat = curStats.fcStat;
         curBenchStats.opsPerCombine = (double) curStats.fcStat.ops / Math.max(1, curStats.fcStat.combines);
         curBenchStats.nanosPerCombine = (double) curStats.fcStat.combinerTimeNanos / Math.max(1, curStats.fcStat.combines);
+        curBenchStats.attemptsPerCombine = (double) curStats.fcStat.attempts / Math.max(1, curStats.fcStat.combines);
+        addCustomStats(curBenchStats);
 
         throughput[currentIteration] = ((double) curStats.total / elapsedTime);
 
@@ -536,6 +540,42 @@ public class Test {
         System.out.println(curBenchStats);
 
         benchStatistics[currentIteration] = curBenchStats;
+    }
+
+    public void addCustomStats(BenchStatistic benchStats) {
+        benchStats.custom = new HashMap<>();
+        // FC
+        var threads = benchStats.threadStatistics.length;
+        var combinerNanos = new double[threads];
+        var combinerAttempts = new double[threads];
+        var combines = new double[threads];
+        var opsPerCombine = new double[threads];
+        var nanosPerCombine = new double[threads];
+        for (int i = 0; i < threads; i++) {
+            combinerNanos[i] = benchStats.threadStatistics[i].fcStat.combinerTimeNanos;
+            combinerAttempts[i] = benchStats.threadStatistics[i].fcStat.attempts;
+            combines[i] = benchStats.threadStatistics[i].fcStat.combines;
+            opsPerCombine[i] = benchStats.threadStatistics[i].fcStat.ops / Math.max(1, combines[i]);
+            nanosPerCombine[i] = combinerNanos[i] / Math.max(1, combines[i]);
+        }
+
+        benchStats.custom.put("meanCombinerNanos", StatsCalculator.mean(combinerNanos));
+        benchStats.custom.put("meanCombinerAttempts", StatsCalculator.mean(combinerAttempts));
+        benchStats.custom.put("meanCombines", StatsCalculator.mean(combines));
+        benchStats.custom.put("meanOpsPerCombine", StatsCalculator.mean(opsPerCombine));
+        benchStats.custom.put("meanNanosPerCombine", StatsCalculator.mean(nanosPerCombine));
+
+        benchStats.custom.put("stdCombinerNanos", StatsCalculator.std(combinerNanos));
+        benchStats.custom.put("stdCombinerAttempts", StatsCalculator.std(combinerAttempts));
+        benchStats.custom.put("stdCombines", StatsCalculator.std(combines));
+        benchStats.custom.put("stdOpsPerCombine", StatsCalculator.std(opsPerCombine));
+        benchStats.custom.put("stdNanosPerCombine", StatsCalculator.std(nanosPerCombine));
+
+        benchStats.custom.put("iqrCombinerNanos", StatsCalculator.iqr(combinerNanos));
+        benchStats.custom.put("iqrCombinerAttempts", StatsCalculator.iqr(combinerAttempts));
+        benchStats.custom.put("iqrCombines", StatsCalculator.iqr(combines));
+        benchStats.custom.put("iqrOpsPerCombine", StatsCalculator.iqr(opsPerCombine));
+        benchStats.custom.put("iqrNanosPerCombine", StatsCalculator.iqr(nanosPerCombine));
     }
 
     /**
