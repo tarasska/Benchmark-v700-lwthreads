@@ -4,24 +4,22 @@ import contention.benchmark.statistic.custom.FcStat;
 
 public abstract class FlatCombiningStructure {
 
-    private final FcStat fcStat;
-
-    protected FlatCombiningStructure() {
-        fcStat = new FcStat();
-    }
+    private final ThreadLocal<FcStat> fcStat = ThreadLocal.withInitial(FcStat::new);
 
     protected abstract void combine(FcStat stats);
 
     protected final void combine() {
         var from = System.nanoTime();
 
-        combine(this.fcStat);
+        var stat = this.fcStat.get();
 
-        fcStat.combines++;
-        fcStat.combinerTimeNanos += System.nanoTime() - from;
+        combine(stat);
+
+        stat.combines++;
+        stat.combinerTimeNanos += System.nanoTime() - from;
     }
 
     public FcStat getStats() {
-        return fcStat;
+        return fcStat.get();
     }
 }

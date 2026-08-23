@@ -134,6 +134,11 @@ def parse_java_result(path, n_threads, extra_fields=None):
                                         ] or None,
     }
 
+    # fields from nested 'custom' map — stored with prefix "custom." internally
+    custom_map = r.get("custom", {})
+    for k, v in custom_map.items():
+        record["custom." + k] = float(v) if isinstance(v, (int, float)) else 0.0
+
     # any caller-requested extra top-level fields
     for field in (extra_fields or []):
         if field not in record:
@@ -196,6 +201,13 @@ def discover_targets(results_dir, requested, repeat_names, agg, extra_fields=Non
             for rec in load_ds_dir(child, extra_fields):
                 raw.setdefault(ds, {}).setdefault(rec["threads"], []).append(rec)
 
+    # collect all custom.* keys seen across any loaded record
+    custom_keys = set()
+    for threads_map in raw.values():
+        for recs in threads_map.values():
+            for rec in recs:
+                custom_keys.update(k for k in rec if k.startswith("custom."))
+
     SCALAR_FIELDS = [
                         "throughput_ops_per_sec",
                         "sum_num_operations_total",
@@ -206,7 +218,7 @@ def discover_targets(results_dir, requested, repeat_names, agg, extra_fields=Non
                         "elapsed_time_s",
                         "opsPerCombine",
                         "nanosPerCombine",
-                    ] + [f for f in extra_fields if f not in (
+                    ] + sorted(custom_keys) + [f for f in extra_fields if f not in (
         "throughput_ops_per_sec", "opsPerCombine", "nanosPerCombine")]
 
     targets = {}
@@ -479,7 +491,7 @@ def print_summary(targets, output_dir, agg, multi):
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-ALL_STATS = ["throughput", "ops_per_combine", "nanos_per_combine",
+ALL_STATS = ["throughput", "ops_per_combine", "nanos_per_combine", "attempts_per_combine"
              "ops_breakdown", "per_thread", "summary"]
 
 
@@ -515,6 +527,16 @@ Examples:
                         metavar="FIELD_NAME",
                         help="Additional top-level JSON field names to plot "
                              "(e.g. --extra-metrics combineRounds avgQueueLength)")
+    parser.add_argument("--custom-metrics", nargs="+", default=[],
+                        metavar="NAME",
+                        help="Fields from the 'custom' JSON map to plot. "
+                             "Use 'all' to plot every field in the map "
+                             "(e.g. --custom-metrics all  OR  "
+                             "--custom-metrics meanOpsPerCombine stdNanosPerCombine)")
+    parser.add_argument("--custom-map", default="custom",
+                        metavar="KEY",
+                        help="Top-level JSON key of the custom metrics map "
+                             "(default: 'custom')")
     args = parser.parse_args()
 
     if not args.results_dir.is_dir():
@@ -545,6 +567,9 @@ Examples:
     print("Output  :", output_dir)
     if args.extra_metrics:
         print("Extras  :", ", ".join(args.extra_metrics))
+    if args.custom_metrics:
+        label = "all" if args.custom_metrics == ["all"] else ", ".join(args.custom_metrics)
+        print("Custom  :", label)
     print()
 
     stat_set = set(args.stat)
@@ -580,6 +605,34 @@ Examples:
     for field in args.extra_metrics:
         plot_metric(targets, output_dir, field=field, agg=args.agg, multi=multi,
                     num_cores=args.num_cores)
+
+    # resolve --custom-metrics: 'all' expands to every custom.* key found in data
+    if args.custom_metrics:
+        all_custom_keys = sorted({
+            k for recs in targets.values()
+            for r in recs for k in r if k.startswith("custom.")
+        })
+        if args.custom_metrics == ["all"]:
+            selected_custom = all_custom_keys
+        else:
+            # user named fields without the prefix — add it
+            selected_custom = [
+                "custom." + name if not name.startswith("custom.") else name
+                for name in args.custom_metrics
+            ]
+            missing = [f for f in selected_custom if f not in all_custom_keys]
+            if missing:
+                print("Warning: custom fields not found in data:",
+                      ", ".join(m.replace("custom.", "") for m in missing),
+                      file=sys.stderr)
+
+        if selected_custom:
+            print("Custom metrics ({} fields):".format(len(selected_custom)))
+        for field in selected_custom:
+            short = field.replace("custom.", "")
+            plot_metric(targets, output_dir, field=field, agg=args.agg, multi=multi,
+                        ylabel=short, title=short + " vs threads",
+                        num_cores=args.num_cores)
 
     print("\nDone.")
 

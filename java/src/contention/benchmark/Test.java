@@ -576,6 +576,18 @@ public class Test {
         benchStats.custom.put("iqrCombines", StatsCalculator.iqr(combines));
         benchStats.custom.put("iqrOpsPerCombine", StatsCalculator.iqr(opsPerCombine));
         benchStats.custom.put("iqrNanosPerCombine", StatsCalculator.iqr(nanosPerCombine));
+
+        benchStats.custom.put("minCombinerNanos", StatsCalculator.min(combinerNanos));
+        benchStats.custom.put("minCombinerAttempts", StatsCalculator.min(combinerAttempts));
+        benchStats.custom.put("minCombines", StatsCalculator.min(combines));
+        benchStats.custom.put("minOpsPerCombine", StatsCalculator.min(opsPerCombine));
+        benchStats.custom.put("minNanosPerCombine", StatsCalculator.min(nanosPerCombine));
+
+        benchStats.custom.put("maxCombinerNanos", StatsCalculator.max(combinerNanos));
+        benchStats.custom.put("maxCombinerAttempts", StatsCalculator.max(combinerAttempts));
+        benchStats.custom.put("maxCombines", StatsCalculator.max(combines));
+        benchStats.custom.put("maxOpsPerCombine", StatsCalculator.max(opsPerCombine));
+        benchStats.custom.put("maxNanosPerCombine", StatsCalculator.max(nanosPerCombine));
     }
 
     /**
