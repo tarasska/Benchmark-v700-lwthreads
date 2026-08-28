@@ -36,6 +36,7 @@ RESULTS_DIR="sweep_results/output"
 JAVA_DIR="../"
 DATA_MAP_FILE=""
 VIRTUAL_THREADS=false
+ASYNC_PROFILER=""
 
 # ── arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -52,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --results-dir)   RESULTS_DIR="$2";   shift 2 ;;
     --java-dir)      JAVA_DIR="$2";      shift 2 ;;
     --data-map-file) DATA_MAP_FILE="$2"; shift 2 ;;
+    --async-profiler) ASYNC_PROFILER="$2"; shift 2 ;;
     --virtual-threads) VIRTUAL_THREADS=true; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
@@ -179,9 +181,17 @@ for REP in $(seq 1 "$REPEATS"); do
       EXTRA_ARGS=""
       $VIRTUAL_THREADS && EXTRA_ARGS="-virtual-threads"
 
-      "$GRADLEW" -p "$JAVA_DIR" run -q -PmaxCores=$CORES \
-        --args="-ds $DS -json-file $(realpath $CONFIG) -result-file $(realpath $RESULT) $EXTRA_ARGS" \
-        2>/dev/null
+      if [[ -n $ASYNC_PROFILER ]]; then
+        "$GRADLEW" -p "$JAVA_DIR" run -q -PmaxCores=$CORES \
+          -PasyncProfiler=$ASYNC_PROFILER \
+          -PflameOut="runner/$DS_OUT/profile/flamegraph_cops${T}.html" \
+          --args="-ds $DS -json-file $(realpath $CONFIG) -result-file $(realpath $RESULT) $EXTRA_ARGS" \
+          2>/dev/null
+      else
+        "$GRADLEW" -p "$JAVA_DIR" run -q -PmaxCores=$CORES \
+          --args="-ds $DS -json-file $(realpath $CONFIG) -result-file $(realpath $RESULT) $EXTRA_ARGS" \
+          2>/dev/null
+      fi
       EXIT=$?
       set -e
 

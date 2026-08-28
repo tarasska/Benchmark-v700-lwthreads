@@ -42,6 +42,13 @@ run {
         jvmArgs("-XX:ActiveProcessorCount=${project.property('maxCores')}")
     }
     jvmArgs("-XX:-RestrictContended")
+
+    if (project.hasProperty("asyncProfiler")) {
+        def outFile = project.findProperty("flameOut") ?: "${projectDir}/flamegraph.html"
+        file(outFile).parentFile.mkdirs()
+        jvmArgs "-agentpath:${project.property('asyncProfiler')}=start,event=cpu,file=${outFile}"
+        jvmArgs "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints"
+    }
 }
 
 sourceSets {
