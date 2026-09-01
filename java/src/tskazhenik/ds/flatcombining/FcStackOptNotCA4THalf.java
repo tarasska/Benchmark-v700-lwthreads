@@ -5,6 +5,7 @@ import contention.abstractions.FlatCombiningStructure;
 import contention.benchmark.statistic.custom.FcStat;
 import tskazhenik.GlobalConstants;
 import tskazhenik.GlobalScopedValues;
+import tskazhenik.util.SpinUtil;
 import tskazhenik.util.TTASLock;
 
 import java.lang.invoke.MethodHandles;
@@ -88,7 +89,7 @@ public class FcStackOptNotCA4THalf extends FlatCombiningStructure implements Com
                 return;
             } else {
                 while (req.isPublished() && lock.isLocked()) {
-                    Thread.yield();
+                    SpinUtil.yield();
                 }
 
                 if (!req.isPublished()) {

@@ -5,6 +5,7 @@ import contention.abstractions.FlatCombiningStructure;
 import contention.benchmark.statistic.custom.FcStat;
 import tskazhenik.GlobalConstants;
 import tskazhenik.GlobalScopedValues;
+import tskazhenik.util.SpinUtil;
 import tskazhenik.util.TTASLock;
 
 import java.lang.invoke.MethodHandles;
@@ -95,7 +96,7 @@ public class FcStackOptLockBackoffNotC extends FlatCombiningStructure implements
                         if (!lock.isLocked()) {
                             break;
                         } else {
-                            Thread.yield();
+                            SpinUtil.yield();
                         }
                     } else {
                         for (int i = 0; i < Math.min(1 << iterations, 1024); i++) {

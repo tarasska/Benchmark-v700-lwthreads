@@ -4,6 +4,7 @@ import contention.abstractions.CompositionalQueue;
 import contention.abstractions.FlatCombiningStructure;
 import contention.benchmark.statistic.custom.FcStat;
 import tskazhenik.GlobalConstants;
+import tskazhenik.util.SpinUtil;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -92,7 +93,7 @@ public class FcStack extends FlatCombiningStructure implements CompositionalQueu
                 return;
             } else {
                 while (req.status != FCStatus.FINISHED && lock.isLocked()) {
-                    Thread.yield();
+                    SpinUtil.yield();
                 }
 
                 if (req.status == FCStatus.FINISHED) {

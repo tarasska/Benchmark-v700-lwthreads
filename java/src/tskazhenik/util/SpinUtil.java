@@ -14,6 +14,13 @@ public class SpinUtil {
         }
     }
 
+    public static void yield() {
+        if (Thread.currentThread().isVirtual()) {
+            Thread.yield();
+        }
+        // disable yield for OS threads
+    }
+
     private static void spin(int iteration) {
         int spins = Math.min(BASE_SPIN_COUNT * (1 << iteration), MAX_SPIN_COUNT);
         for (int i = 0; i < spins; i++) {

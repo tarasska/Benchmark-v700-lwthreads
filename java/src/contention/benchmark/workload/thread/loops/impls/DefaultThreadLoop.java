@@ -5,6 +5,7 @@ import contention.benchmark.workload.thread.loops.abstractions.ThreadLoop;
 import contention.benchmark.workload.thread.loops.parameters.RatioThreadLoopParameters;
 import contention.benchmark.workload.args.generators.abstractions.ArgsGenerator;
 import contention.benchmark.workload.stop.condition.StopCondition;
+import tskazhenik.util.SpinUtil;
 
 import java.lang.reflect.Method;
 import java.util.Random;
@@ -61,7 +62,6 @@ public class DefaultThreadLoop extends ThreadLoop {
             executeGet(key);
         }
 
-        Thread.yield();
     }
 
 }

@@ -5,6 +5,7 @@ import contention.abstractions.DataStructure;
 import contention.abstractions.FlatCombiningStructure;
 import contention.benchmark.statistic.ThreadStatistic;
 import contention.benchmark.workload.stop.condition.StopCondition;
+import tskazhenik.util.SpinUtil;
 
 import java.lang.reflect.Method;
 import java.util.Collection;
@@ -51,6 +52,9 @@ public abstract class ThreadLoop implements Runnable {
             step();
             stats.total++;
 
+            if (stats.total % 100 == 0) {
+                SpinUtil.yield();
+            }
             assert stats.total == stats.failures + stats.numContains + stats.numSize + stats.numRemove
                     + stats.numAdd + stats.numRemoveAll + stats.numAddAll;
         }
