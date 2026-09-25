@@ -170,9 +170,13 @@ bool binding_isInjectiveMapping(const int nthreads) {
 
 void binding_bindThread(const int tid) {
 #ifndef USE_COROUTINES
-    auto core = tid % std::thread::hardware_concurrency();
+    int cores = std::thread::hardware_concurrency();
+#ifdef BENCH_CORES
+    cores = BENCH_CORES;
+#endif
+    auto core = tid % cores;
     boost::fibers::numa::pin_thread(core);
-    std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) << std::endl;
+    std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) + " of " + std::to_string(cores) << std::endl;
 #endif        
     // if (numCustomBindings > 0) {
     //     doBindThread(tid);

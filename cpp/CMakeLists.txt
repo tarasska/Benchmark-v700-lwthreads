@@ -103,6 +103,7 @@ add_definitions("-DMAX_THREADS_POW2=2048"
         "-DKEY_SEARCH_TOTAL_STAT"
         "-Wno-volatile"
         "-DUSE_COROUTINES"
+        "-DBENCH_CORES=16"
         #"-DWITH_PARALLEL_WORK"
 )
 
