@@ -18,3 +18,6 @@
 [submodule "cpp/nasl-tools"]
 	path = cpp/nasl-tools
 	url = https://github.com/ITMO-PTDC-Team/nasl-tools.git
+[submodule "cpp/argobots"]
+	path = cpp/argobots
+	url = https://github.com/pmodels/argobots.git
