@@ -38,7 +38,7 @@
 #include <nasl/lock/mutex_wrapper.hpp>
 #include <nasl/util/statefull_backoff.hpp>
 
-#include "../nasl_boost_fibers/suspendable.hpp"
+#include "../nasl/suspendable.hpp"
 #include <nasl/yield.hpp>
 
 #include <boost/fiber/all.hpp>

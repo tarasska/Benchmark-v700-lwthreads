@@ -65,6 +65,10 @@ if (SKIP_VALIDATION)
     add_definitions("-DSKIP_VALIDATION")
 endif ()
 
+if (USE_ARGOBOTS)
+    add_compile_options(-ftls-model=initial-exec)
+endif ()
+
 # if (USE_STACK_OPERATIONS)
     # add_definitions("-DUSE_STACK_OPERATIONS")
 # endif ()
@@ -72,23 +76,23 @@ endif ()
     # add_definitions("-DUSE_QUEUE_OPERATIONS")
 # endif ()
 set(QUEUE_DS
-    treiber_stack_fc_sleep
-    treiber_stack_fc_sleep_mcs
-    treiber_stack_sleep_mcs
-    treiber_stack
-    treiber_stack_fast
-    treiber_stack_fc
-    treiber_stack_4fc
-    treiber_stack_16fc
-    treiber_stack_4fc_opt
-    treiber_stack_fc_opt
-    stack_nasl_mcs
+    # treiber_stack_fc_sleep
+    # treiber_stack_fc_sleep_mcs
+    # treiber_stack_sleep_mcs
+    # treiber_stack
+    # treiber_stack_fast
+    # treiber_stack_fc
+    # treiber_stack_4fc
+    # treiber_stack_16fc
+    # treiber_stack_4fc_opt
+    # treiber_stack_fc_opt
+    # stack_nasl_mcs
     stack_global_lock
 
-    queue_global_lock
-    mcs_queue_fc
-    michael_scott_queue_fc
-    michael_scott_queue_lf
+    # queue_global_lock
+    # mcs_queue_fc
+    # michael_scott_queue_fc
+    # michael_scott_queue_lf
 )
 
 add_definitions("-DMAX_THREADS_POW2=2048"
@@ -102,7 +106,7 @@ add_definitions("-DMAX_THREADS_POW2=2048"
         "-DKEY_DEPTH_TOTAL_STAT"
         "-DKEY_SEARCH_TOTAL_STAT"
         "-Wno-volatile"
-        "-DUSE_COROUTINES"
+        #"-DUSE_COROUTINES"
         "-DBENCH_CORES=16"
         #"-DWITH_PARALLEL_WORK"
 )
@@ -143,14 +147,20 @@ endforeach ()
 # Verlib
 include_directories(ds/verlib_structs/include)
 
-# NASL
-# ── Boost ─────────────────────────────────────────────────────────────────────
-if (Boost_ROOT)
-    message(STATUS "Boost: using custom path: ${Boost_ROOT}")
-    set(Boost_NO_SYSTEM_PATHS ON)
+# ── LW THREADS ─────────────────────────────────────────────────────────────────────
+if (USE_BOOST_FIBERS)
+    # ── Boost ─────────────────────────────────────────────────────────────────────
+    if (Boost_ROOT)
+        message(STATUS "Boost: using custom path: ${Boost_ROOT}")
+        set(Boost_NO_SYSTEM_PATHS ON)
+    endif ()
+    find_package(Boost REQUIRED COMPONENTS fiber fiber_numa)
+    message(STATUS "Boost: found ${Boost_VERSION} at ${Boost_INCLUDE_DIRS}")
 endif ()
-find_package(Boost REQUIRED COMPONENTS fiber fiber_numa)
-message(STATUS "Boost: found ${Boost_VERSION} at ${Boost_INCLUDE_DIRS}")
+
+if (USE_ARGOBOTS)
+    include(external-cmake/argobots/argobots.cmake)
+endif ()
 
 # ── NASL ──────────────────────────────────────────────────────────────────────
 if (NASL_ROOT)
@@ -186,7 +196,18 @@ foreach (DS ${QUEUE_DS})
     message(DS_DIR= "${DS_DIR}/${DS}")
     set(DS_RUN ${DS}${RECLAIM})
 
-    add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl_boost_fibers/yield.cpp)
+    if (USE_BOOST_FIBERS)
+        add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/boost_fibers/yield.cpp)
+        target_link_libraries(${DS_RUN} PUBLIC nasl Boost::fiber Boost::fiber_numa)
+        target_compile_definitions(${DS_RUN} PRIVATE USE_BOOST_FIBERS)
+    elseif (USE_ARGOBOTS)
+        add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/argobots/yield.cpp)
+        target_link_libraries(${DS_RUN} PUBLIC nasl argobots)
+        target_compile_definitions(${DS_RUN} PRIVATE USE_ARGOBOTS)
+    else ()
+        add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/os/yield.cpp)
+        target_link_libraries(${DS_RUN} PUBLIC nasl USE_OS)
+    endif ()
     #target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/nasl_boost_fibers)
 
     # target_include_directories(${DS_RUN} PRIVATE ${Boost_INCLUDE_DIRS})
@@ -195,6 +216,6 @@ foreach (DS ${QUEUE_DS})
     target_link_libraries(${DS_RUN} PUBLIC ${CXX_LIBS_LIST})
     target_link_libraries(${DS_RUN} PUBLIC "-latomic")
 
-    target_link_libraries(${DS_RUN} PUBLIC nasl Boost::fiber Boost::fiber_numa)
+
     target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS USE_QUEUE_OPERATIONS)
 endforeach ()

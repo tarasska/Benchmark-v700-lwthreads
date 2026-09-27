@@ -52,7 +52,7 @@ done
 
 CONFIG_DIR="$RESULTS_COMMON_DIR/config"
 OUTPUT_DIR="$RESULTS_COMMON_DIR/output"
-BIN_DIR="../build"
+BIN_DIR="../$BUILD_DIR"
 
 # ── validate that all binaries exist before starting ─────────────────────────
 echo "Checking binaries..."

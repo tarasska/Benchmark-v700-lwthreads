@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>
-#include <boost/fiber/all.hpp>
+#include <nasl/yield.hpp>
 
 
 using namespace std;
@@ -78,7 +78,7 @@ public:
                        memory_order_relaxed);
                }
            }
-           boost::this_fiber::yield();
+           nasl::core::yield();
        }
    }
 
@@ -107,7 +107,7 @@ public:
                    }
                }
            }
-           boost::this_fiber::yield();
+           nasl::core::yield();
        }
    }
 
@@ -121,7 +121,7 @@ public:
                return new K(curr->key);
            }
            curr = curr->next.load(memory_order_acquire);
-           boost::this_fiber::yield();
+           nasl::core::yield();
        }
        return nullptr;
    }

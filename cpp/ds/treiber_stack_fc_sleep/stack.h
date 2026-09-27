@@ -11,7 +11,7 @@ Treiber Stack with FC
 
 #include <nasl/util/statefull_backoff.hpp>
 #include <nasl/yield.hpp>
-#include "../nasl_boost_fibers/suspendable.hpp"
+#include "../nasl/suspendable.hpp"
 
 using namespace std;
 

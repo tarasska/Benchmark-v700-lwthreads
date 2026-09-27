@@ -1,0 +1,5 @@
+#!/bin/sh
+export CC="@ARGOBOTS_CC@"
+export CFLAGS="@ARGOBOTS_CFLAGS@"
+export CXXFLAGS="@ARGOBOTS_CFLAGS@ @ARGOBOTS_CXXFLAGS@"
+eval "$*"

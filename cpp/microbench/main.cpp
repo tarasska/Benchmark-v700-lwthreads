@@ -209,17 +209,29 @@ Statistic get_statistic(int64_t elapsed_millis) {
     return Statistic(elapsed_millis / 1000.);
 }
 
-volatile uint64_t g_coro_work_iterations = 0
+volatile uint64_t g_coro_work_iterations = 0;
 
+#ifdef USE_BOOST_FIBERS
 #include <boost/fiber/all.hpp>
 #include <boost/fiber/numa/all.hpp>
+#endif
+
 #include <vector>
+
+#ifdef USE_ARGOBOTS
+#include "abt_helpers/shared_pool_task_runner.hpp"
+
+void abt_thread_routine(void* args_ptr) {
+    auto* thread_loop = reinterpret_cast<ThreadLoop*>(args_ptr);
+    thread_loop->run();
+}
+#endif
 
 void execute(globals_t* g, Parameters* parameters) {
     std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
 
-#ifdef USE_COROUTINES   
+#if defined(USE_BOOST_FIBERS) || defined(USE_ARGOBOTS) 
     const int total_fibers = parameters->get_num_threads();
     const int g_num_os_threads = parameters->get_num_os_threads();
     const int num_os_threads    = g_num_os_threads;
@@ -270,7 +282,9 @@ void execute(globals_t* g, Parameters* parameters) {
     ___timeline_use = 1;
 #endif
 
-#ifdef USE_COROUTINES
+#ifdef USE_BOOST_FIBERS
+    std::cout << "BOOST_FIBERS WILL BE USED...\n";
+
     parameters->stopCondition->start(parameters->get_num_threads());
     g->start = true;
     __sync_synchronize();
@@ -333,6 +347,28 @@ void execute(globals_t* g, Parameters* parameters) {
         g_coro_work_iterations = total_work_iters.load();
         std::cout << "finished (multi-thread mode)\n";
     }
+#endif
+
+#ifdef USE_ARGOBOTS
+    std::cout << "ARGOBOTS WILL BE USED...\n";
+
+    parameters->stopCondition->start(parameters->get_num_threads());
+    g->start = true;
+    __sync_synchronize();
+    SOFTWARE_BARRIER;
+
+
+    std::cout << "initing " << num_os_threads << " OS threads × " << fibers_per_thread << " fibers each...\n";
+
+    SharedPoolTaskRunner task_runner(BENCH_CORES, num_os_threads, static_cast<int>(parameters->get_num_threads()));
+    task_runner.run_threads(abt_thread_routine, thread_loops);
+
+    std::cout << "done initiating...\n";
+    task_runner.join_all_threads([&](int i) {
+    });
+
+    g_coro_work_iterations = 0;
+    std::cout << "finished (multi-thread mode)\n";   
 #else
     parameters->stopCondition->start(parameters->get_num_threads());
     g->start = true;
@@ -410,7 +446,7 @@ void execute(globals_t* g, Parameters* parameters) {
     g->done = false;
 }
 
-
+#ifdef USE_BOOST_FIBERS
 static std::vector<std::thread> workers;
 static volatile bool keep_alive = true;
 static std::mutex mtx_count{};
@@ -452,6 +488,7 @@ void destruct_workers() {
         t.join();
     }
 }
+#endif
 
 void run(globals_t* g) {
     int total_threads = g->benchParameters->get_total_threads();
@@ -465,10 +502,12 @@ void run(globals_t* g) {
         g->benchParameters->test->get_num_os_threads()
     });
     std::cout << "MAX OS THREADS = " << max_os_threads << std::endl;
-#ifdef USE_COROUTINES
+#ifdef USE_BOOST_FIBERS
     construct_work_stealing_workers(max_os_threads);
+#elifdef USE_ARGOBOTS
+    std::cout << "Argobots mode on. Work-stealing sched will be used\n";
 #else
-    std::cout << "OS Threads will be used instead of coroutines\n";
+    std::cout << "OS Threads will be used instead of coroutines.\n";
 #endif    
 
 #ifdef KEY_DEPTH_TOTAL_STAT
@@ -785,6 +824,26 @@ void write_json_file(const std::string& file_name, T& t) {
 int main(int argc, char** argv) {
     printUptimeStampForPERF("MAIN_START");
 
+#ifdef USE_BOOST_FIBERS
+    std::cout << "DEFINED USE_BOOST_FIBERS" << std::endl;
+#endif 
+
+#ifdef USE_ARGOBOTS
+    std::cout << "DEFINED USE_ARGOBOTS" << std::endl;
+#endif
+
+#ifdef USE_OS
+    std::cout << "DEFINED USE_ARGOBOTS" << std::endl;
+#endif
+
+#ifdef USE_BOOST_FIBERS
+    std::cout << "(else-check) DEFINED USE_BOOST_FIBERS" << std::endl;
+#elifdef USE_ARGOBOTS
+    std::cout << "(else-check) DEFINED USE_ARGOBOTS" << std::endl;
+#else
+    std::cout << "(else-check) DEFINED USE_ARGOBOTS" << std::endl;
+#endif
+
     std::cout << "binary=" << argv[0] << std::endl;
 
     BenchParameters* bench_parameters = new BenchParameters();
@@ -917,6 +976,8 @@ int main(int argc, char** argv) {
         json["work_iteration"] = g_coro_work_iterations;
         write_json_file(result_statistic_file_name, json);
     }
+#ifdef USE_BOOST_FIBERS    
     destruct_workers();
+#endif    
     printUptimeStampForPERF("MAIN_END");
 }

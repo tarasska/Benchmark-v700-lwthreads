@@ -28,7 +28,9 @@
 #include <stdlib.h>
 #include <string>
 #include "plaf.h"
+#ifdef USE_BOOST_FIBERS
 #include "boost/fiber/numa/pin_thread.hpp"
+#endif
 
 // cpu sets for binding threads to cores
 static cpu_set_t *cpusets[LOGICAL_PROCESSORS];
@@ -175,7 +177,7 @@ void binding_bindThread(const int tid) {
     cores = BENCH_CORES;
 #endif
     auto core = tid % cores;
-    boost::fibers::numa::pin_thread(core);
+    //boost::fibers::numa::pin_thread(core);
     std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) + " of " + std::to_string(cores) << std::endl;
 #endif        
     // if (numCustomBindings > 0) {

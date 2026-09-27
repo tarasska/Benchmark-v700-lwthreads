@@ -8,7 +8,12 @@
 
 
 #include <nasl/yield.hpp>
+#ifdef USE_BOOST_FIBERS
 #include <boost/fiber/all.hpp>
+#elifdef USE_ARGOBOTS
+#include <abt.h>
+#include "../nasl/argobots/mutex_wrapper.hpp"
+#endif
 
 
 using namespace std;
@@ -36,8 +41,10 @@ struct alignas(CACHE_LINE_SIZE) mstack {
 private:
     std::vector<K> stack;
     volatile int size;
-#ifdef USE_COROUTINES
+#ifdef USE_BOOST_FIBERS
     boost::fibers::mutex lock;
+#elifdef USE_ARGOBOTS
+    AbtMutexWrapper lock;
 #else
     std::mutex lock;
 #endif    
@@ -88,10 +95,7 @@ public:
 
 
     bool empty() const {
-        //lock.lock();
         return stack.empty();
-        //lock.unlock();
-        //return empty;
     }
 
 
