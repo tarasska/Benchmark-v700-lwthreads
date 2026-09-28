@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>
-#include <boost/fiber/all.hpp>
+#include <nasl/yield.hpp>
 
 
 using namespace std;

@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
-#include <boost/fiber/all.hpp>
 
 #include <nasl/yield.hpp>
 

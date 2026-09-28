@@ -41,8 +41,6 @@
 #include "../nasl/suspendable.hpp"
 #include <nasl/yield.hpp>
 
-#include <boost/fiber/all.hpp>
-
 
 using namespace std;
 

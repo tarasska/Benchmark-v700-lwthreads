@@ -7,8 +7,6 @@ Treiber Stack with FC
 #include <atomic>
 #include <memory>
 
-#include <boost/fiber/all.hpp>
-
 #include <nasl/util/statefull_backoff.hpp>
 #include <nasl/yield.hpp>
 #include "../nasl/suspendable.hpp"

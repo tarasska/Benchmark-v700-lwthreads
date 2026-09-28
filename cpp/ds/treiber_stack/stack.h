@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <atomic>
 #include <memory>
-#include <boost/fiber/all.hpp>
 #include <immintrin.h>
 
 #include <nasl/yield.hpp>
