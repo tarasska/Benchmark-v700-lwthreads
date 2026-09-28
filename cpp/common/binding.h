@@ -184,7 +184,7 @@ void binding_bindThread(const int tid) {
 #ifdef USE_OS
     int cores = std::thread::hardware_concurrency();
 #ifdef BENCH_CORES
-    cores = std::max(cores, BENCH_CORES);
+    cores = std::min(cores, BENCH_CORES);
 #endif
     auto core = tid % cores;
     cpu_set_t mask;
