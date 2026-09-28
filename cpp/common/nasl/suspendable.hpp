@@ -1,7 +1,11 @@
 #ifdef USE_BOOST_FIBERS
 #include "./boost_fibers/suspendable.hpp"
-#elifdef USE_ARGOBOTS
+#endif
+
+#ifdef USE_ARGOBOTS
 #include "./argobots/suspendable.hpp"
-#else
+#endif
+
+#ifdef USE_OS
 #include "./os/suspendable.hpp"
 #endif

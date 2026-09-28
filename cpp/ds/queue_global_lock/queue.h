@@ -8,9 +8,12 @@
 
 
 #include <nasl/yield.hpp>
+
 #ifdef USE_BOOST_FIBERS
 #include <boost/fiber/all.hpp>
-#elifdef USE_ARGOBOTS
+#endif
+
+#ifdef USE_ARGOBOTS
 #include <abt.h>
 #include "../nasl/argobots/mutex_wrapper.hpp"
 #endif
@@ -31,11 +34,16 @@ struct alignas(CACHE_LINE_SIZE) mqueue {
 private:
     std::deque<K> queue;
     volatile int size;
+    
 #ifdef USE_BOOST_FIBERS
     boost::fibers::mutex lock;
-#elifdef USE_ARGOBOTS
+#endif
+
+#ifdef USE_ARGOBOTS
     AbtMutexWrapper lock;
-#else
+#endif
+
+#ifdef USE_OS
     std::mutex lock;
 #endif   
 

@@ -247,27 +247,6 @@ void execute(globals_t* g, Parameters* parameters) {
              << " fibers_per_thread=" << fibers_per_thread << "\n";
 
     g_max_threads = total_fibers;         
-#else
-    g_max_threads = parameters->get_num_threads(); 
-    std::cout << "OS THREADS (" << parameters->get_num_threads() << ") WILL BE USED...\n";
-    // std::cout << "binding threads...\n";
-    // binding_setCustom(parameters->get_pin());
-    // bind_threads(parameters->get_num_threads());
-
-    std::cout << "creating threads...\n";
-    
-    for (int i = 0; i < parameters->get_num_threads(); ++i) {
-        threads[i] = new std::thread(&ThreadLoop::run, thread_loops[i]);
-    }
-
-    std::cout << "All threads created...\n";
-
-    while (g->running < parameters->get_num_threads()) {
-        TRACE COUTATOMIC("main thread: waiting for threads to START running=" << g->running
-                                                                              << std::endl);
-    }  // wait for all threads to be ready
-
-    std::cout << "All threads are ready...\n";
 #endif
 
     std::cout << "MAX_THREADS=" << g_max_threads << std::endl;
@@ -369,7 +348,30 @@ void execute(globals_t* g, Parameters* parameters) {
 
     g_coro_work_iterations = 0;
     std::cout << "finished (multi-thread mode)\n";   
-#else
+#endif
+
+#ifdef USE_OS
+    g_max_threads = parameters->get_num_threads(); 
+    std::cout << "OS THREADS (" << parameters->get_num_threads() << ") WILL BE USED...\n";
+    // std::cout << "binding threads...\n";
+    // binding_setCustom(parameters->get_pin());
+    // bind_threads(parameters->get_num_threads());
+
+    std::cout << "creating threads...\n";
+    
+    for (int i = 0; i < parameters->get_num_threads(); ++i) {
+        threads[i] = new std::thread(&ThreadLoop::run, thread_loops[i]);
+    }
+
+    std::cout << "All threads created...\n";
+
+    while (g->running < parameters->get_num_threads()) {
+        TRACE COUTATOMIC("main thread: waiting for threads to START running=" << g->running
+                                                                              << std::endl);
+    }  // wait for all threads to be ready
+
+    std::cout << "All threads are ready...\n";
+
     parameters->stopCondition->start(parameters->get_num_threads());
     g->start = true;
     SOFTWARE_BARRIER;

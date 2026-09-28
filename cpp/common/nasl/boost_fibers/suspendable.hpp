@@ -13,13 +13,10 @@ class Suspendable<nasl::core::DefaultSuspendData> {
   public:
 
     static void init(SuspendData* suspend_data, std::memory_order mo = std::memory_order_seq_cst) {
-#ifdef USE_COROUTINES         
         suspend_data->state_ptr.store(SuspendData::kReadyForSuspend, mo);
-#endif        
     }
     
     static bool suspend(SuspendData* suspend_data) {
-#ifdef USE_COROUTINES 
         boost::fibers::promise<bool> resume_promise;
         std::uintptr_t resume_event_ptr = reinterpret_cast<std::uintptr_t>(&resume_promise);
         auto expected_state = SuspendData::kReadyForSuspend;
@@ -27,12 +24,11 @@ class Suspendable<nasl::core::DefaultSuspendData> {
             resume_promise.get_future().wait();
             return true;
         }
-#endif            
+           
         return false;
     }
 
     static void resume(SuspendData* suspend_data) {
-#ifdef USE_COROUTINES         
         if (suspend_data == nullptr) {
             return;
         }
@@ -41,8 +37,7 @@ class Suspendable<nasl::core::DefaultSuspendData> {
             auto* casted_resume_event_ptr = reinterpret_cast<boost::fibers::promise<bool>*>(resume_event_ptr);
             suspend_data->state_ptr.store(SuspendData::kReadyForSuspend);
             casted_resume_event_ptr->set_value(true);
-        }
-#endif        
+        }       
     }
 };
 

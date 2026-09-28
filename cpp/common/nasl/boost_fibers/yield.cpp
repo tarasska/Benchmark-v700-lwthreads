@@ -4,12 +4,8 @@
 
 namespace nasl::core {
 
-   void yield() {
-#ifdef USE_COROUTINES     
-      boost::this_fiber::yield();
-#else
-      std::this_thread::yield();      
-#endif      
+   void yield() {   
+      boost::this_fiber::yield();     
    }
 
 }

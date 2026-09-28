@@ -79,13 +79,13 @@ set(QUEUE_DS
     # treiber_stack_fc_sleep
     # treiber_stack_fc_sleep_mcs
     # treiber_stack_sleep_mcs
-    # treiber_stack
+    treiber_stack
     # treiber_stack_fast
-    # treiber_stack_fc
-    # treiber_stack_4fc
-    # treiber_stack_16fc
-    # treiber_stack_4fc_opt
-    # treiber_stack_fc_opt
+    treiber_stack_fc
+    treiber_stack_4fc
+    treiber_stack_16fc
+    treiber_stack_4fc_opt
+    treiber_stack_fc_opt
     # stack_nasl_mcs
     stack_global_lock
 
@@ -204,9 +204,12 @@ foreach (DS ${QUEUE_DS})
         add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/argobots/yield.cpp)
         target_link_libraries(${DS_RUN} PUBLIC nasl argobots)
         target_compile_definitions(${DS_RUN} PRIVATE USE_ARGOBOTS)
-    else ()
+    elseif (USE_OS)
         add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/os/yield.cpp)
-        target_link_libraries(${DS_RUN} PUBLIC nasl USE_OS)
+        target_link_libraries(${DS_RUN} PUBLIC nasl)
+        target_compile_definitions(${DS_RUN} PRIVATE USE_OS)
+    else ()
+        message(FATAL_ERROR "Unexpected thread type")
     endif ()
     #target_include_directories(${DS_RUN} PUBLIC ${DS_DIR}/nasl_boost_fibers)
 

@@ -33,10 +33,10 @@
 #endif
 
 // cpu sets for binding threads to cores
-static cpu_set_t *cpusets[LOGICAL_PROCESSORS];
-static int customBinding[LOGICAL_PROCESSORS];
+static cpu_set_t *cpusets[BENCH_CORES];
+static int customBinding[BENCH_CORES];
 static int numCustomBindings = 0;
-static int numLogicalProcessors = LOGICAL_PROCESSORS;
+static int numLogicalProcessors = BENCH_CORES;
 
 static unsigned digits(unsigned x) {
     int d = 1;
@@ -121,14 +121,12 @@ void binding_setCustom(const std::vector<int> & pin) {
 }
 
 static void doBindThread(const int tid) {
-#ifndef USE_COROUTINES
     if (customBinding[tid] == -1)
         return;
     if (sched_setaffinity(0, CPU_ALLOC_SIZE(numLogicalProcessors), cpusets[tid%numLogicalProcessors])) { // bind thread to core
         std::cout<<"ERROR: could not bind thread "<<tid<<" to cpuset "<<cpusets[tid%numLogicalProcessors]<<std::endl;
         exit(-1);
-    }
-#endif    
+    }   
 }
 
 int binding_getActualBinding(const int tid) {
@@ -171,18 +169,41 @@ bool binding_isInjectiveMapping(const int nthreads) {
 }
 
 void binding_bindThread(const int tid) {
-#ifndef USE_COROUTINES
-    int cores = std::thread::hardware_concurrency();
-#ifdef BENCH_CORES
-    cores = BENCH_CORES;
-#endif
-    auto core = tid % cores;
-    //boost::fibers::numa::pin_thread(core);
-    std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) + " of " + std::to_string(cores) << std::endl;
-#endif        
+// #ifndef USE_COROUTINES
+//     int cores = std::thread::hardware_concurrency();
+// #ifdef BENCH_CORES
+//     cores = BENCH_CORES;
+// #endif
+//     auto core = tid % cores;
+//     //boost::fibers::numa::pin_thread(core);
+//     std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) + " of " + std::to_string(cores) << std::endl;
+// #endif        
     // if (numCustomBindings > 0) {
     //     doBindThread(tid);
     // }
+#ifdef USE_OS
+    int cores = std::thread::hardware_concurrency();
+#ifdef BENCH_CORES
+    cores = std::max(cores, BENCH_CORES);
+#endif
+    auto core = tid % cores;
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(core, &mask);
+    //NOTE: numa_set_preferred to pin on correct socket
+    if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) != 0) {
+        std::cout<< "ERROR: could not pin thread "<< tid <<" to core "<< core << std::endl;
+    } else {
+        std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) + " of " + std::to_string(cores) << std::endl;
+    }   
+    // auto core = tid % numLogicalProcessors;
+    // if (sched_setaffinity(0, CPU_ALLOC_SIZE(numLogicalProcessors), cpusets[core])) { // bind thread to core
+    //     std::cout<<"ERROR: could not bind thread "<<tid<<" to cpuset "<< cpusets[core] <<std::endl;
+    //     exit(-1);
+    // } else {
+    //     std::cout << "Tid " + std::to_string(tid) + " pinned to core " + std::to_string(core) + " of " + std::to_string(numLogicalProcessors) << std::endl;
+    // }
+#endif    
 }
 
 void binding_configurePolicy(const int nthreads) {
