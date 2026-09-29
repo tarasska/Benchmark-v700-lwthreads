@@ -474,6 +474,17 @@ void init_work_stealing_thread(std::uint32_t thread_cnt, std::uint32_t cpu_id) {
     await_termintation();
 }
 
+void init_numa_work_stealing_thread(
+    std::uint32_t cpu_id,
+    std::uint32_t node_id,
+    std::vector<boost::fibers::numa::node> const& topo
+) {
+    print_thread();
+    // thread registers itself at work-stealing scheduler
+    boost::fibers::use_scheduling_algorithm< boost::fibers::numa::algo::work_stealing>(cpu_id, node_id, topo);
+    await_termintation();
+}
+
 void construct_work_stealing_workers(size_t fiber_workers_cnt) {
     std::cout << "WORK STEALING SCHED WITH WORKERS=" << fiber_workers_cnt << std::endl;
     boost::fibers::numa::pin_thread(0);
@@ -482,6 +493,29 @@ void construct_work_stealing_workers(size_t fiber_workers_cnt) {
     }
     boost::fibers::use_scheduling_algorithm<boost::fibers::algo::work_stealing>(fiber_workers_cnt);
 }
+
+void construct_numa_work_stealing_workers() {
+    std::cout << "NUMA WORK STEALING SCHED" << std::endl;
+    
+    // evaluate the NUMA topology
+    std::vector<boost::fibers::numa::node> topo = boost::fibers::numa::topology();
+    // start-thread runs on NUMA-node `0`
+    auto node = topo[0];
+    // start-thread is pinnded to first cpu ID in the list of logical cpus of NUMA-node `0`
+    auto start_cpu_id = *node.logical_cpus.begin();
+    for (auto& node : topo) {
+        for (std::uint32_t cpu_id : node.logical_cpus) {
+            // exclude start-thread
+            if (start_cpu_id != cpu_id) {
+                // spawn thread
+                workers.emplace_back(init_numa_work_stealing_thread, cpu_id, node.id, std::cref(topo));
+            }
+        }
+    }
+    // start-thread registers itself on work-stealing scheduler
+    boost::fibers::use_scheduling_algorithm<boost::fibers::numa::algo::work_stealing>(start_cpu_id, node.id, topo);
+}
+
 
 void destruct_workers() {
     keep_alive = false;
@@ -505,11 +539,19 @@ void run(globals_t* g) {
     });
     std::cout << "MAX OS THREADS = " << max_os_threads << std::endl;
 #ifdef USE_BOOST_FIBERS
-    construct_work_stealing_workers(max_os_threads);
-#elifdef USE_ARGOBOTS
-    std::cout << "Argobots mode on. Work-stealing sched will be used\n";
+#ifdef USE_FIBERS_NUMA
+    construct_numa_work_stealing_workers();
 #else
-    std::cout << "OS Threads will be used instead of coroutines.\n";
+    construct_work_stealing_workers(max_os_threads);
+#endif    
+#endif
+
+#ifdef USE_ARGOBOTS
+    std::cout << "Argobots mode on. Work-stealing sched will be used\n";
+#endif
+
+#ifdef USE_OS
+    std::cout << "OS sched will be used\n";
 #endif    
 
 #ifdef KEY_DEPTH_TOTAL_STAT
@@ -836,14 +878,6 @@ int main(int argc, char** argv) {
 
 #ifdef USE_OS
     std::cout << "DEFINED USE_ARGOBOTS" << std::endl;
-#endif
-
-#ifdef USE_BOOST_FIBERS
-    std::cout << "(else-check) DEFINED USE_BOOST_FIBERS" << std::endl;
-#elifdef USE_ARGOBOTS
-    std::cout << "(else-check) DEFINED USE_ARGOBOTS" << std::endl;
-#else
-    std::cout << "(else-check) DEFINED USE_ARGOBOTS" << std::endl;
 #endif
 
     std::cout << "binary=" << argv[0] << std::endl;
