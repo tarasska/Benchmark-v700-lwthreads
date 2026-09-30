@@ -149,8 +149,11 @@ private:
                 return;
             } else {
                 //std::cout << "Waiting" << tid << std::endl;
+                bool should_yield = g_max_threads > BENCH_CORES;
                 while (req.status != FCStatus::FINISHED && combiner_lock.load(std::memory_order_acquire) != 0) {
-                    nasl::core::yield();
+                    if (should_yield) {
+                        nasl::core::yield();
+                    }
                 }
 
                 //atomic_thread_fence(memory_order_acquire);
