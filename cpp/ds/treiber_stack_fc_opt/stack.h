@@ -166,7 +166,8 @@ private:
 
     void combine() {
         //std::cout << "Combine to " << g_max_threads << std::endl;
-        for (int t = 0; t < 16; ++t) {
+        int iters = (g_max_threads > 16) ? 16 : (g_max_threads / 2);
+        for (int t = 0; t < iters; ++t) {
             int ops = 0;
             for (int i = 0; i < g_max_threads; i++) {
                 fc_request<K>& req = thread_slots[i];
