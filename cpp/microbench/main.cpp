@@ -539,11 +539,11 @@ void run(globals_t* g) {
     });
     std::cout << "MAX OS THREADS = " << max_os_threads << std::endl;
 #ifdef USE_BOOST_FIBERS
-#ifdef USE_FIBERS_NUMA
-    construct_numa_work_stealing_workers();
-#else
+// #ifdef USE_FIBERS_NUMA
+//     construct_numa_work_stealing_workers();
+// #else
     construct_work_stealing_workers(max_os_threads);
-#endif    
+//#endif    
 #endif
 
 #ifdef USE_ARGOBOTS
