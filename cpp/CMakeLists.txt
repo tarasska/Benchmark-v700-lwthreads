@@ -80,6 +80,8 @@ set(QUEUE_DS
     # treiber_stack_fc_sleep_mcs
     # treiber_stack_sleep_mcs
     treiber_stack
+    treiber_stack_yield_only
+    treiber_stack_spin_only
     # treiber_stack_fast
     treiber_stack_fc
     treiber_stack_4fc
@@ -88,6 +90,7 @@ set(QUEUE_DS
     treiber_stack_fc_opt
     # stack_nasl_mcs
     stack_global_lock
+    elimination_stack
 
     # queue_global_lock
     # mcs_queue_fc
