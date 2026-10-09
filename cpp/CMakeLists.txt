@@ -91,7 +91,8 @@ set(QUEUE_DS
     # stack_nasl_mcs
     stack_global_lock
     elimination_stack
-
+    elimination_stack_opt
+    
     # queue_global_lock
     # mcs_queue_fc
     # michael_scott_queue_fc
