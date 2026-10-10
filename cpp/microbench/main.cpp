@@ -227,9 +227,20 @@ void abt_thread_routine(void* args_ptr) {
 }
 #endif
 
+// Only the test phase is retained; histogram storage is never serialized.
+LatencyHistograms test_latency;
+
 void execute(globals_t* g, Parameters* parameters) {
     std::thread** threads = new std::thread*[MAX_THREADS_POW2]; 
     ThreadLoop** thread_loops = parameters->get_workload(g, g->rngs);
+    const bool measure_latency = LATENCY_ENABLED && parameters == g->benchParameters->test;
+    if (measure_latency) {
+        test_latency = {};
+        for (size_t i = 0; i < parameters->get_num_threads(); ++i) {
+            thread_loops[i]->measureLatency = true;
+            for (auto& histogram : thread_loops[i]->latency) histogram.prepare();
+        }
+    }
 
 #if defined(USE_BOOST_FIBERS) || defined(USE_ARGOBOTS) 
     const int total_fibers = parameters->get_num_threads();
@@ -438,6 +449,14 @@ void execute(globals_t* g, Parameters* parameters) {
 
     g->elapsedMillis =
         std::chrono::duration_cast<std::chrono::milliseconds>(g->endTime - g->startTime).count();
+
+    if (measure_latency) {
+        for (size_t i = 0; i < parameters->get_num_threads(); ++i) {
+            for (size_t kind = 0; kind < test_latency.size(); ++kind)
+                test_latency[kind].merge(thread_loops[i]->latency[kind]);
+            thread_loops[i]->latency = {}; // Release per-worker storage after joining.
+        }
+    }
 
     parameters->stopCondition->clean();
     delete[] threads;
@@ -1010,6 +1029,28 @@ int main(int argc, char** argv) {
         nlohmann::json json;
         GSTATS_JSON(json);
         json["work_iteration"] = g_coro_work_iterations;
+        if (LATENCY_ENABLED) {
+            auto& latency = json["latency_ns"];
+            auto summary = [](const LatencyHistogram& histogram) {
+                nlohmann::json result;
+                auto number = [](double value) -> nlohmann::json {
+                    return std::isfinite(value) ? nlohmann::json(value) : nlohmann::json(nullptr);
+                };
+                result["mean"] = number(histogram.mean());
+                result["p95"] = number(histogram.percentile(95));
+                result["p99"] = number(histogram.percentile(99));
+                result["count"] = histogram.count();
+                result["below_min_count"] = histogram.below_min();
+                result["above_max_count"] = histogram.above_max();
+                return result;
+            };
+            LatencyHistogram total;
+            for (size_t kind = 0; kind < test_latency.size(); ++kind) {
+                latency[LATENCY_OPERATION_NAMES[kind]] = summary(test_latency[kind]);
+                total.merge(test_latency[kind]);
+            }
+            latency["all"] = summary(total);
+        }
         write_json_file(result_statistic_file_name, json);
     }
 #ifdef USE_BOOST_FIBERS    

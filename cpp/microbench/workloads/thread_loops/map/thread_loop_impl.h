@@ -58,7 +58,9 @@ template <typename K>
 K* MapThreadLoop::execute_insert(K& key) {
     TRACE COUTATOMICTID("### calling INSERT " << key << std::endl);
 
-    VALUE_TYPE value = g->dsAdapter->insertIfAbsent(threadId, key, KEY_TO_VALUE(key));
+    VALUE_TYPE value = this->measure_operation(LatencyOperation::Insert, [&] {
+        return g->dsAdapter->insertIfAbsent(threadId, key, KEY_TO_VALUE(key));
+    });
     //    K *value = (K *) g->dsAdapter->insertIfAbsent(threadId, key, KEY_TO_VALUE(key));
 
     if (value == g->dsAdapter->getNoValue()) {
@@ -80,7 +82,9 @@ template <typename K>
 K* MapThreadLoop::execute_remove(const K& key) {
     TRACE COUTATOMICTID("### calling ERASE " << key << std::endl);
     //    K *value = (K *) g->dsAdapter->erase(this->threadId, key);
-    VALUE_TYPE value = g->dsAdapter->erase(this->threadId, key);
+    VALUE_TYPE value = this->measure_operation(LatencyOperation::Remove, [&] {
+        return g->dsAdapter->erase(this->threadId, key);
+    });
 
     if (value != this->g->dsAdapter->getNoValue()) {
         TRACE COUTATOMICTID("### completed ERASE modification for " << key << std::endl);
@@ -100,7 +104,9 @@ K* MapThreadLoop::execute_remove(const K& key) {
 template <typename K>
 K* MapThreadLoop::execute_get(const K& key) {
     //    K *value = (K *) this->g->dsAdapter->find(this->threadId, key);
-    VALUE_TYPE value = this->g->dsAdapter->find(this->threadId, key);
+    VALUE_TYPE value = this->measure_operation(LatencyOperation::Get, [&] {
+        return this->g->dsAdapter->find(this->threadId, key);
+    });
 
     if (value != this->g->dsAdapter->getNoValue()) {
         garbage += key;  // prevent optimizing out
@@ -116,7 +122,9 @@ K* MapThreadLoop::execute_get(const K& key) {
 
 template <typename K>
 bool MapThreadLoop::execute_contains(const K& key) {
-    bool value = this->g->dsAdapter->contains(this->threadId, key);
+    bool value = this->measure_operation(LatencyOperation::Contains, [&] {
+        return this->g->dsAdapter->contains(this->threadId, key);
+    });
 
     if (value) {
         garbage += key;  // prevent optimizing out
@@ -137,8 +145,11 @@ template <typename K>
 void MapThreadLoop::execute_range_query(const K& leftKey, const K& rightKey) {
     ++rq_cnt;
     size_t rqcnt;
-    if ((rqcnt = this->g->dsAdapter->rangeQuery(this->threadId, leftKey, rightKey, rqResultKeys,
-                                                (VALUE_TYPE*)rqResultValues))) {
+    rqcnt = this->measure_operation(LatencyOperation::RangeQuery, [&] {
+        return this->g->dsAdapter->rangeQuery(this->threadId, leftKey, rightKey, rqResultKeys,
+                                            (VALUE_TYPE*)rqResultValues);
+    });
+    if (rqcnt) {
         garbage +=
             rqResultKeys[0] +
             rqResultKeys[rqcnt - 1];  // prevent rqResultValues and count from being optimized out

@@ -51,7 +51,9 @@ namespace microbench::workload::queue {
 template <typename K>
 K* QueueThreadLoop::execute_get(const K& key) {
     //    K *value = (K *) this->g->dsAdapter->find(this->threadId, key);
-    K* value = (K*) this->g->dsAdapter->find(this->threadId, key);
+    K* value = this->measure_operation(LatencyOperation::Get, [&] {
+        return (K*) this->g->dsAdapter->find(this->threadId, key);
+    });
 
     if (value != this->g->dsAdapter->getNoValue()) {
         garbage += key;  // prevent optimizing out
@@ -69,7 +71,9 @@ template <typename K>
 K* QueueThreadLoop::execute_push(const K& key) {
     TRACE COUTATOMICTID("### calling PUSH " << key << std::endl);
 
-    auto value = g->dsAdapter->push(threadId, key);
+    auto value = this->measure_operation(LatencyOperation::Push, [&] {
+        return g->dsAdapter->push(threadId, key);
+    });
     for (int i = 0; i < this->nopCount; i++) {
         __asm__ __volatile__("nop");
     }
@@ -84,7 +88,9 @@ template <typename K>
 K* QueueThreadLoop::execute_pop() {
     TRACE COUTATOMICTID("### calling POP " << std::endl);
     //    K *value = (K *) this->g->dsAdapter->find(this->threadId, key);
-    VALUE_TYPE value = this->g->dsAdapter->pop(this->threadId);
+    VALUE_TYPE value = this->measure_operation(LatencyOperation::Pop, [&] {
+        return this->g->dsAdapter->pop(this->threadId);
+    });
 
     if (value != this->g->dsAdapter->getNoValue()) {
         TRACE COUTATOMICTID("### completed POP modification for " << value << std::endl);
@@ -101,7 +107,9 @@ K* QueueThreadLoop::execute_pop() {
 
 template <typename K>
 bool QueueThreadLoop::execute_contains(const K& key) {
-    bool value = this->g->dsAdapter->contains(this->threadId, key);
+    bool value = this->measure_operation(LatencyOperation::Contains, [&] {
+        return this->g->dsAdapter->contains(this->threadId, key);
+    });
 
     if (value) {
         garbage += key;  // prevent optimizing out
