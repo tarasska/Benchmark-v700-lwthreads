@@ -1029,6 +1029,7 @@ int main(int argc, char** argv) {
     if (result_statistic_to_file) {
         nlohmann::json json;
         GSTATS_JSON(json);
+        json["bench_yield_every"] = BENCH_YIELD_EVERY;
         // Reuse completed-operation counters; no extra instrumentation or yields.
         std::vector<uint64_t> operations;
         if (json.contains("sum_num_operations_by_thread"))

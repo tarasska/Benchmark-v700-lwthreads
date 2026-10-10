@@ -6,6 +6,10 @@
 #include "workloads/stop_condition/stop_condition.h"
 #include "globals_t.h"
 #include "latency.h"
+#include "periodic_yield.h"
+#if BENCH_YIELD_EVERY > 0
+#include <nasl/yield.hpp>
+#endif
 
 namespace microbench::workload {
 
@@ -15,6 +19,7 @@ class ThreadLoop {
 protected:
     K garbage = 0;
     VALUE_TYPE NO_VALUE;
+    PeriodicYield<> externalYield;
 
 public:
     size_t threadId;
@@ -35,6 +40,13 @@ public:
         latency[static_cast<size_t>(kind)].record(
             std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count());
         return result;
+    }
+
+    // Called after adapter timing and operation accounting, in every phase.
+    void after_operation() {
+#if BENCH_YIELD_EVERY > 0
+        externalYield.after_operation([] { nasl::core::yield(); });
+#endif
     }
 
     ThreadLoop() = default;

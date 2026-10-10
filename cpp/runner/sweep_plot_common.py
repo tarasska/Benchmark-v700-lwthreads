@@ -14,6 +14,8 @@ import numpy as np
 # Edit axis labels here; used by both entry points.
 AXIS_LABELS = {
     "x": "coroutines per thread",
+    "compare_x": "threads (see 'setup' label)",
+    "work_throughput": "work throughput (iter / s)",
     "throughput": "throughput (ops / s)",
     "operations": "total operations",
     "per_thread": "ops per thread",
@@ -96,12 +98,17 @@ def add_arguments(parser):
                         help="Operation types for latency plots (default: all = combined operations)")
 
 
-def plot_extra_metrics(targets, output_dir, stats, operations, agg=None, multi=False):
+def selected_metric_fields(stats, operations):
     fields = [(field, AXIS_LABELS[field]) for field in PROGRESS_FIELDS if field in stats]
     for stat in ("mean", "p95", "p99"):
         if "latency" in stats or f"latency_{stat}" in stats:
             fields.extend((f"latency_{op}_{stat}_ns", f"{op}: {stat} {AXIS_LABELS['latency']}")
                           for op in operations)
+    return fields
+
+
+def plot_extra_metrics(targets, output_dir, stats, operations, agg=None, multi=False):
+    fields = selected_metric_fields(stats, operations)
     ticks = sorted({r["coroutines"] for records in targets.values() for r in records})
     for field, ylabel in fields:
         if not any(math.isfinite(r.get(field, float("nan"))) for records in targets.values() for r in records):

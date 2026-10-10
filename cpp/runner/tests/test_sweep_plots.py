@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import sweep_plot_common as common
 import plot_sweep
 import plot_sweep_v3
+import plot_compare
 
 
 class SweepTests(unittest.TestCase):
@@ -46,6 +47,10 @@ class SweepTests(unittest.TestCase):
                     "latency_ns": {"all": {"mean": 100 if run == "v1" else 300, "p95": 500, "p99": None}}
                 }))
             targets, multi, _ = plot_sweep_v3.discover_targets(root, set(), ["auto"], "mean")
+            compared = plot_compare.load_setup(root, set(), "mean")
+            self.assertEqual(compared["stack"][0]["jain_fairness"], 0.5)
+            self.assertEqual(compared["stack"][0]["latency_all_mean_ns"], 200)
+            self.assertTrue(math.isnan(compared["stack"][0]["latency_all_p99_ns"]))
             record = targets["stack"][0]
             self.assertTrue(multi)
             self.assertEqual(record["jain_fairness"], 0.5)
@@ -68,11 +73,21 @@ class SweepTests(unittest.TestCase):
                 self.assertEqual(ax.lines[0].get_marker(), "")
                 self.assertEqual(ax.get_xlabel(), common.AXIS_LABELS["x"])
             common.plt.close("all")
+            with patch.object(common.plt, "close"):
+                plot_compare.plot_comparison(
+                    [("yield", {"stack": [data]}), ("no-yield", {"stack": [data]})],
+                    "zero_progress_percent", "test Y", "test", root, "mean", "compare.png")
+                ax = common.plt.gcf().axes[0]
+                self.assertEqual([line.get_color() for line in ax.lines], ["red", "red"])
+                self.assertEqual([line.get_linestyle() for line in ax.lines], ["-", "--"])
+                self.assertEqual(ax.get_xlabel(), common.AXIS_LABELS["compare_x"])
+                self.assertEqual(ax.artists[0].get_texts()[0].get_text(), "Stack A")
+            common.plt.close("all")
             style.write_text('{"stack": {"color": "invalid-color"}}')
             with self.assertRaises(ValueError):
                 common.load_styles(style)
 
-    def test_both_clis_generate_old_and_new_plots(self):
+    def test_all_clis_generate_old_and_new_plots(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             for run in ("v1", "v2"):
@@ -88,6 +103,17 @@ class SweepTests(unittest.TestCase):
                         }))
             styles = root / "styles.json"
             styles.write_text('{"stack": {"label": "My stack", "color": "red", "marker": null}}')
+            compare_out = root / "compare-out"
+            compare = subprocess.run([
+                sys.executable, str(Path(plot_compare.__file__)),
+                "--run", f"single {root / 'v1'}", "--run", f"repeated {root}",
+                "--output-dir", str(compare_out), "--ds-styles", str(styles),
+                "--latency-operations", "all", "pop"
+            ], capture_output=True, text=True, timeout=60)
+            self.assertEqual(compare.returncode, 0, compare.stderr)
+            for name in ("throughput", "combined", "latency_all_p99_ns", "latency_pop_mean_ns",
+                         "zero_progress_percent", "jain_fairness"):
+                self.assertTrue((compare_out / f"compare_{name}.png").is_file(), name)
             for script in ("plot_sweep.py", "plot_sweep_v3.py"):
                 output = root / (script + "-out")
                 cmd = [sys.executable, str(Path(__file__).resolve().parents[1] / script),

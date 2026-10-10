@@ -63,6 +63,7 @@ K* QueueThreadLoop::execute_get(const K& key) {
     }
     GSTATS_ADD(threadId, num_searches, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return (K*)value;
 }
@@ -81,6 +82,7 @@ K* QueueThreadLoop::execute_push(const K& key) {
     garbage += key;  // prevent optimizing out
     GSTATS_ADD(threadId, num_pushes, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
     return (K*)value;
 }
 
@@ -101,6 +103,7 @@ K* QueueThreadLoop::execute_pop() {
     }
     GSTATS_ADD(threadId, num_pops, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return (K*)value;
 }
@@ -119,6 +122,7 @@ bool QueueThreadLoop::execute_contains(const K& key) {
     }
     GSTATS_ADD(threadId, num_searches, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return value;
 }

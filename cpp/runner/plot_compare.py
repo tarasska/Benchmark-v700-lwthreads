@@ -34,13 +34,12 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+from sweep_plot_common import (
+    AXIS_LABELS, EXTRA_FIELDS, EXTRA_STATS, add_arguments, ds_style,
+    enrich_metrics, load_styles, selected_metric_fields,
+)
 
 # ── style ─────────────────────────────────────────────────────────────────────
-# Colour encodes DS identity (consistent with plot_sweep.py)
-DS_COLORS  = ["#4C8EDA", "#E06C4B", "#3BAA72", "#9B6DD4",
-               "#E0B84B", "#4BC7CE", "#D45E8A", "#7A7A7A"]
-DS_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
-
 # Line style encodes setup/label identity — supports up to 4 setups
 SETUP_STYLES = [
     dict(linestyle="solid",       linewidth=2.0),
@@ -78,7 +77,7 @@ AGG_FUNCS = {
 
 def aggregate(values, agg):
     arr = np.array(values, dtype=float)
-    if len(arr) == 0:
+    if len(arr) == 0 or not np.isfinite(arr).all():
         return float("nan"), 0.0, 0.0
     func, band_func, _ = AGG_FUNCS[agg]
     center = float(func(arr))
@@ -94,6 +93,7 @@ def load_result_file(path, cops):
     with open(path) as f:
         data = json.load(f)
     data["coroutines"] = cops
+    enrich_metrics(data)
     run_ms = data.get("max_time_thread_terminate_total", 0) / 1e6
     total  = data.get("sum_num_operations_total", 0)
     work   = data.get("work_iteration", 0)
@@ -144,6 +144,8 @@ def load_setup(root, requested_ds, agg):
         "sum_num_operations_total",
     ]
 
+    FIELDS += EXTRA_FIELDS
+
     targets = {}
     for ds, cops_map in sorted(raw.items()):
         records = []
@@ -151,7 +153,7 @@ def load_setup(root, requested_ds, agg):
             recs = cops_map[cops]
             out  = {"coroutines": cops, "run_count": len(recs)}
             for field in FIELDS:
-                vals = [r.get(field, 0) for r in recs]
+                vals = [r.get(field, float("nan") if field in EXTRA_FIELDS else 0) for r in recs]
                 c, lo, hi = aggregate(vals, agg)
                 out[field]          = c
                 out[field + "_lo"]  = lo
@@ -185,7 +187,7 @@ def setup_xaxis(ax, ticks):
     ax.set_xscale("log", base=2)
     ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.set_xticks(ticks)
-    ax.set_xlabel("threads (see 'setup' label)", fontsize=10)
+    ax.set_xlabel(AXIS_LABELS["compare_x"], fontsize=10)
 
 
 def all_ds_names(setups):
@@ -201,14 +203,17 @@ def all_ds_names(setups):
 
 # ── plots ─────────────────────────────────────────────────────────────────────
 
-def _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi):
+def _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi, field=None):
     ax.plot(x, y, marker=marker, color=color, markersize=6,
-            markeredgewidth=0, **style)
+            **style)
     if multi and any(lo > 0 or hi > 0 for lo, hi in zip(y_lo, y_hi)):
         y_arr = np.array(y)
-        ax.fill_between(x, y_arr - np.array(y_lo),
-                           y_arr + np.array(y_hi),
-                        alpha=0.10, color=color)
+        lower, upper = y_arr - np.array(y_lo), y_arr + np.array(y_hi)
+        if field in EXTRA_FIELDS:
+            lower = np.maximum(lower, 0)
+            if field in ("zero_progress_percent", "jain_fairness"):
+                upper = np.minimum(upper, 100 if field == "zero_progress_percent" else 1)
+        ax.fill_between(x, lower, upper, alpha=0.10, color=color)
 
 
 def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename):
@@ -216,8 +221,13 @@ def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename
     Generic comparison plot: one line per (ds × setup) combination.
     Legend split into two sections: colours = DS, styles = setup labels.
     """
+    if field in EXTRA_FIELDS and not any(
+        np.isfinite(r.get(field, float("nan")))
+        for _, targets in setups for records in targets.values() for r in records
+    ):
+        print(f"Warning: no finite values for {field}; plot skipped.", file=sys.stderr)
+        return
     ds_names = all_ds_names(setups)
-    ds_index = {ds: i for i, ds in enumerate(ds_names)}
     multi    = any(
         any(r.get("run_count", 1) > 1 for r in recs)
         for _, targets in setups
@@ -229,25 +239,24 @@ def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename
     for setup_idx, (label, targets) in enumerate(setups):
         style  = SETUP_STYLES[setup_idx % len(SETUP_STYLES)]
         for ds, records in targets.items():
-            di     = ds_index[ds]
-            color  = DS_COLORS[di % len(DS_COLORS)]
-            marker = DS_MARKERS[di % len(DS_MARKERS)]
+            color  = ds_style(ds)["color"]
+            marker = ds_style(ds)["marker"]
             x      = [r["coroutines"]         for r in records]
-            y      = [r.get(field, 0)          for r in records]
+            y      = [r.get(field, float("nan") if field in EXTRA_FIELDS else 0) for r in records]
             y_lo   = [r.get(field + "_lo", 0)  for r in records]
             y_hi   = [r.get(field + "_hi", 0)  for r in records]
-            _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi)
+            _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi, field)
 
     # ── legend: DS colours + setup line styles ────────────────────────────────
     colour_handles = [
-        mlines.Line2D([], [], color=DS_COLORS[ds_index[ds] % len(DS_COLORS)],
-                      linewidth=2, marker=DS_MARKERS[ds_index[ds] % len(DS_MARKERS)],
-                      markersize=6, label=ds)
+        mlines.Line2D([], [], color=ds_style(ds)["color"],
+                      linewidth=2, marker=ds_style(ds)["marker"],
+                      markersize=6, label=ds_style(ds)["label"])
         for ds in ds_names
     ]
     style_handles = [
-        mlines.Line2D([], [], color="black", label=label, **style)
-        for (label, _), style in zip(setups, SETUP_STYLES)
+        mlines.Line2D([], [], color="black", label=label, **SETUP_STYLES[i % len(SETUP_STYLES)])
+        for i, (label, _) in enumerate(setups)
     ]
 
     # Two-column legend: left = DS colours, right = setup styles
@@ -261,6 +270,10 @@ def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename
     ticks = all_cops_from_setups(setups)
     setup_xaxis(ax, ticks)
     ax.set_ylabel(ylabel, fontsize=10)
+    if field in ("zero_progress_percent", "jain_fairness"):
+        ax.set_ylim(0, 100 if field == "zero_progress_percent" else 1)
+    elif field in EXTRA_FIELDS:
+        ax.set_ylim(bottom=0)
     agg_note = " [{}]".format(agg) if multi else ""
     ax.set_title(title_base + agg_note, fontsize=11, fontweight="bold")
     style_ax(ax)
@@ -289,7 +302,7 @@ def plot_summary_table(setups, output_dir, agg, field="throughput_ops_per_sec"):
 
     setup_labels = [label for label, _ in setups]
     header_parts = ["  ".join(
-        "{:>{}}".format("{}/{}".format(label, ds), col)
+        "{:>{}}".format("{}/{}".format(label, ds_style(ds)["label"]), col)
         for label in setup_labels
         for ds in ds_names
     )]
@@ -338,7 +351,7 @@ def parse_run(s):
     return parts[0], Path(parts[1])
 
 
-ALL_PLOTS = ["throughput", "work_throughput", "combined", "summary"]
+ALL_PLOTS = ["throughput", "work_throughput", "combined", "summary"] + EXTRA_STATS
 
 
 def main():
@@ -368,12 +381,19 @@ Examples:
                         help="Aggregation across repeats (default: mean)")
     parser.add_argument("--ds", nargs="*", default=[],
                         help="DS names to include (default: all found)")
-    parser.add_argument("--plot", nargs="+", default=ALL_PLOTS,
+    parser.add_argument("--plot", "--stat", nargs="+", default=ALL_PLOTS,
                         choices=ALL_PLOTS,
                         help="Which plots to generate (default: all)")
     parser.add_argument("--output-dir", type=Path, default=Path("compare_output"),
                         help="Directory for output PNGs (default: compare_output/)")
+    add_arguments(parser)
     args = parser.parse_args()
+    try:
+        load_styles(args.ds_styles)
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
+    if len({label for label, _ in args.runs}) != len(args.runs):
+        parser.error("Setup labels must be unique")
 
     if len(args.runs) > len(SETUP_STYLES):
         print("Warning: more than {} setups — line styles will repeat.".format(
@@ -393,7 +413,7 @@ Examples:
             label, len(targets), n_points, root))
         setups.append((label, targets))
 
-    if not setups:
+    if not any(targets for _, targets in setups):
         print("No data loaded.", file=sys.stderr)
         sys.exit(1)
 
@@ -402,11 +422,14 @@ Examples:
     print()
 
     plot_set = set(args.plot)
+    for field, ylabel in selected_metric_fields(plot_set, args.latency_operations):
+        plot_comparison(setups, field, ylabel, ylabel + " — setup comparison",
+                        args.output_dir, args.agg, f"compare_{field}.png")
 
     if "throughput" in plot_set:
         plot_comparison(setups,
             field="throughput_ops_per_sec",
-            ylabel="throughput  (ops / s)",
+            ylabel=AXIS_LABELS["throughput"],
             title_base="DS throughput vs coroutines",
             output_dir=args.output_dir, agg=args.agg,
             filename="compare_throughput.png")
@@ -414,7 +437,7 @@ Examples:
     if "work_throughput" in plot_set:
         plot_comparison(setups,
             field="work_throughput_ops_per_sec",
-            ylabel="work throughput  (iter / s)",
+            ylabel=AXIS_LABELS["work_throughput"],
             title_base="work throughput vs coroutines",
             output_dir=args.output_dir, agg=args.agg,
             filename="compare_work_throughput.png")
@@ -423,7 +446,6 @@ Examples:
         # DS throughput (solid within style) vs work throughput (one shade lighter)
         # Achieved by overlaying two calls with the same axes
         ds_names = all_ds_names(setups)
-        ds_index = {ds: i for i, ds in enumerate(ds_names)}
         multi = any(
             any(r.get("run_count", 1) > 1 for r in recs)
             for _, targets in setups
@@ -436,24 +458,23 @@ Examples:
             # work throughput: same linestyle but thinner and lower alpha marker
             work_style  = dict(base_style, linewidth=1.2, alpha=0.6)
             for ds, records in targets.items():
-                di     = ds_index[ds]
-                color  = DS_COLORS[di % len(DS_COLORS)]
-                marker = DS_MARKERS[di % len(DS_MARKERS)]
+                color  = ds_style(ds)["color"]
+                marker = ds_style(ds)["marker"]
                 x      = [r["coroutines"] for r in records]
                 for field, style in [("throughput_ops_per_sec",      base_style),
                                      ("work_throughput_ops_per_sec",  work_style)]:
                     y    = [r.get(field, 0)         for r in records]
                     y_lo = [r.get(field + "_lo", 0) for r in records]
                     y_hi = [r.get(field + "_hi", 0) for r in records]
-                    _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi)
+                    _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi, field)
 
         colour_handles = [
-            mlines.Line2D([], [], color=DS_COLORS[ds_index[ds] % len(DS_COLORS)],
-                          linewidth=2, label=ds)
+            mlines.Line2D([], [], color=ds_style(ds)["color"],
+                          linewidth=2, label=ds_style(ds)["label"])
             for ds in ds_names
         ]
         style_handles = [
-            mlines.Line2D([], [], color="black", label=label, **SETUP_STYLES[i])
+            mlines.Line2D([], [], color="black", label=label, **SETUP_STYLES[i % len(SETUP_STYLES)])
             for i, (label, _) in enumerate(setups)
         ]
         style_handles += [
@@ -472,7 +493,7 @@ Examples:
 
         ticks = all_cops_from_setups(setups)
         setup_xaxis(ax, ticks)
-        ax.set_ylabel("throughput  (ops / s)", fontsize=10)
+        ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
         ax.set_title("DS vs work throughput — setup comparison", fontsize=11,
                      fontweight="bold")
         style_ax(ax)

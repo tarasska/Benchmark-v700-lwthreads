@@ -7,6 +7,16 @@ set(DS_DIR "ds")
 set(BUILD_DIR "bin/")
 set(RECLAIM ".debra")
 
+# Application-level cooperative scheduling: 0 disables external yielding.
+set(BENCH_YIELD_EVERY "0" CACHE STRING "Yield after K completed adapter operations per logical worker (0 disables)")
+string(LENGTH "${BENCH_YIELD_EVERY}" BENCH_YIELD_EVERY_LENGTH)
+if (NOT BENCH_YIELD_EVERY MATCHES "^(0|[1-9][0-9]*)$"
+        OR BENCH_YIELD_EVERY_LENGTH GREATER 10
+        OR BENCH_YIELD_EVERY GREATER 2147483647)
+    message(FATAL_ERROR "BENCH_YIELD_EVERY must be an integer between 0 and 2147483647")
+endif ()
+message(STATUS "Benchmark external yield interval: ${BENCH_YIELD_EVERY}")
+
 #set(SOURCE_EXE main.cpp)
 #set(CMAKE_CXX_FLAGS "-lpthread -ldl -mrtm")
 list(APPEND CMAKE_CXX_FLAGS_LIST "-lpthread -ldl -mrtm ")
@@ -227,5 +237,6 @@ foreach (DS ${QUEUE_DS})
     target_link_libraries(${DS_RUN} PUBLIC "-latomic")
 
 
-    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS USE_QUEUE_OPERATIONS)
+    target_compile_definitions(${DS_RUN} PRIVATE USE_STACK_OPERATIONS USE_QUEUE_OPERATIONS
+        BENCH_YIELD_EVERY=${BENCH_YIELD_EVERY})
 endforeach ()

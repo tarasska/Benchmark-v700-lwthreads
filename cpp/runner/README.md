@@ -83,3 +83,29 @@ Tests (from repository root):
 ```sh
 python3 -m unittest discover -s cpp/runner/tests -v
 ```
+
+## Comparing named setups
+
+`plot_compare.py` supports the same metrics and DS style JSON. Color and marker
+identify a data structure; solid/dashed/etc. lines identify the named setup.
+Each setup may contain a single run or automatically discovered `v1/`, `v2/`, etc.
+
+```sh
+python3 plot_compare.py \
+  --run "yield /results/with-yield" \
+  --run "no-yield /results/without-yield" \
+  --plot throughput latency zero_progress_percent jain_fairness \
+  --latency-operations all push pop \
+  --ds-styles ds_styles.example.json --agg median --output-dir compare_plots
+```
+
+`--stat` is an alias for `--plot`. All new metrics, missing-value rules and
+per-run aggregation semantics described above apply. Outputs include
+`compare_latency_all_p99_ns.png`, `compare_zero_progress_percent.png` and
+`compare_jain_fairness.png`. Existing throughput, combined and summary outputs
+remain available. Setup labels must be unique.
+
+Edit `AXIS_LABELS["compare_x"]` for the comparison X axis;
+`AXIS_LABELS["work_throughput"]` controls the work-throughput Y label. Other
+Y labels are shared with the sweep scripts. Setup line styles remain editable
+in `SETUP_STYLES` inside `plot_compare.py`.

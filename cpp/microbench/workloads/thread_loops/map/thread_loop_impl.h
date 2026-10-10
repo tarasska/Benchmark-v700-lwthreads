@@ -74,6 +74,7 @@ K* MapThreadLoop::execute_insert(K& key) {
     }
     GSTATS_ADD(threadId, num_inserts, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return (K*)value;
 }
@@ -97,6 +98,7 @@ K* MapThreadLoop::execute_remove(const K& key) {
     }
     GSTATS_ADD(threadId, num_removes, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return (K*)value;
 }
@@ -116,6 +118,7 @@ K* MapThreadLoop::execute_get(const K& key) {
     }
     GSTATS_ADD(threadId, num_searches, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return (K*)value;
 }
@@ -134,6 +137,7 @@ bool MapThreadLoop::execute_contains(const K& key) {
     }
     GSTATS_ADD(threadId, num_searches, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 
     return value;
 }
@@ -156,6 +160,7 @@ void MapThreadLoop::execute_range_query(const K& leftKey, const K& rightKey) {
     }
     GSTATS_ADD(threadId, num_rq, 1);
     GSTATS_ADD(threadId, num_operations, 1);
+    this->after_operation();
 }
 
 void MapThreadLoop::run() {
