@@ -1,0 +1,12 @@
+{
+  "treiber_stack": {
+    "label": "Treiber stack",
+    "color": "#4C8EDA",
+    "marker": "o"
+  },
+  "treiber_stack_fc": {
+    "label": "Flat combining stack",
+    "color": "#E06C4B",
+    "marker": null
+  }
+}

@@ -29,22 +29,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+from sweep_plot_common import (
+    AXIS_LABELS, EXTRA_STATS, add_arguments, ds_style,
+    enrich_metrics, load_styles, plot_extra_metrics,
+)
 
 # ── style ────────────────────────────────────────────────────────────────────
-
-# Distinct colours for up to 8 targets; extend if you have more
-DS_COLORS = [
-    "#4C8EDA",  # blue
-    "#E06C4B",  # orange-red
-    "#3BAA72",  # green
-    "#9B6DD4",  # purple
-    "#E0B84B",  # amber
-    "#4BC7CE",  # teal
-    "#D45E8A",  # pink
-    "#7A7A7A",  # grey
-]
-# Distinct markers so plots are readable in B&W too
-DS_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 
 GRID_COLOR  = "#E8E8E8"
 SPINE_COLOR = "#CCCCCC"
@@ -78,6 +68,7 @@ def load_ds(ds_dir):
         with open(p) as f:
             data = json.load(f)
         data["coroutines"] = cops
+        enrich_metrics(data)
         run_time_ms = data.get("max_time_thread_terminate_total", 0) / 1e6
         total_ops   = data.get("sum_num_operations_total", 0)
         data["throughput_ops_per_sec"] = (
@@ -132,18 +123,18 @@ def plot_throughput(targets, output_dir):
     for i, (ds, records) in enumerate(targets.items()):
         x = [r["coroutines"]            for r in records]
         y = [r["throughput_ops_per_sec"] for r in records]
-        color  = DS_COLORS[i % len(DS_COLORS)]
-        marker = DS_MARKERS[i % len(DS_MARKERS)]
-        ax.plot(x, y, marker=marker, linewidth=2, label=ds,
-                color=color, markersize=6, markeredgewidth=0)
+        color  = ds_style(ds)["color"]
+        marker = ds_style(ds)["marker"]
+        ax.plot(x, y, marker=marker, linewidth=2, label=ds_style(ds)["label"],
+                color=color, markersize=6)
         ax.fill_between(x, y, alpha=0.06, color=color)
 
     ticks = all_coroutine_ticks(targets)
     ax.set_xscale("log", base=2)
     ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.set_xticks(ticks)
-    ax.set_xlabel("coroutines per thread", fontsize=10)
-    ax.set_ylabel("throughput  (ops / s)", fontsize=10)
+    ax.set_xlabel(AXIS_LABELS["x"], fontsize=10)
+    ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
     ax.set_title("throughput vs coroutines", fontsize=11, fontweight="bold")
     ax.legend(framealpha=0.4, fontsize=9)
     style_ax(ax)
@@ -163,11 +154,11 @@ def plot_push_pop(targets, output_dir):
         x       = [r["coroutines"]               for r in records]
         pushes  = [r.get("sum_num_pushes_total", 0) for r in records]
         pops    = [r.get("sum_num_pops_total",   0) for r in records]
-        color  = DS_COLORS[i % len(DS_COLORS)]
-        marker = DS_MARKERS[i % len(DS_MARKERS)]
-        ax_push.plot(x, pushes, marker=marker, linewidth=2, label=ds,
+        color  = ds_style(ds)["color"]
+        marker = ds_style(ds)["marker"]
+        ax_push.plot(x, pushes, marker=marker, linewidth=2, label=ds_style(ds)["label"],
                      color=color, markersize=6)
-        ax_pop.plot( x, pops,   marker=marker, linewidth=2, label=ds,
+        ax_pop.plot( x, pops,   marker=marker, linewidth=2, label=ds_style(ds)["label"],
                      color=color, markersize=6)
 
     ticks = all_coroutine_ticks(targets)
@@ -175,8 +166,8 @@ def plot_push_pop(targets, output_dir):
         ax.set_xscale("log", base=2)
         ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
         ax.set_xticks(ticks)
-        ax.set_xlabel("coroutines per thread", fontsize=10)
-        ax.set_ylabel("total operations", fontsize=10)
+        ax.set_xlabel(AXIS_LABELS["x"], fontsize=10)
+        ax.set_ylabel(AXIS_LABELS["operations"], fontsize=10)
         ax.set_title(title, fontsize=11, fontweight="bold")
         ax.legend(framealpha=0.4, fontsize=9)
         style_ax(ax)
@@ -212,26 +203,27 @@ def plot_per_thread_boxplot(targets, output_dir):
             labels.append(str(r["coroutines"]))
 
         if not dists:
-            ax.set_title(f"{ds}\n(no per-thread data)")
+            ax.set_title(ds_style(ds)["label"] + "\n(no per-thread data)")
             continue
 
-        color = DS_COLORS[i % len(DS_COLORS)]
+        color = ds_style(ds)["color"]
         bp = ax.boxplot(
             dists,
-            labels=labels,
             patch_artist=True,
             medianprops=dict(color="#222222", linewidth=2),
             whiskerprops=dict(color=SPINE_COLOR),
             capprops=dict(color=SPINE_COLOR),
             flierprops=dict(marker="x", color="#B0B0B0", markersize=5),
         )
+        ax.set_xticks(range(1, len(labels) + 1))
+        ax.set_xticklabels(labels)
         for patch in bp["boxes"]:
-            patch.set_facecolor(color + "33")
+            patch.set_facecolor(matplotlib.colors.to_rgba(color, 0.2))
             patch.set_edgecolor(color)
 
-        ax.set_title(ds, fontsize=10, fontweight="bold")
-        ax.set_xlabel("coroutines per thread", fontsize=9)
-        ax.set_ylabel("ops per thread", fontsize=9)
+        ax.set_title(ds_style(ds)["label"], fontsize=10, fontweight="bold")
+        ax.set_xlabel(AXIS_LABELS["x"], fontsize=9)
+        ax.set_ylabel(AXIS_LABELS["per_thread"], fontsize=9)
         style_ax(ax)
 
     fig.suptitle("per-thread op distribution", fontsize=11, fontweight="bold", y=1.02)
@@ -253,7 +245,7 @@ def print_summary(targets, output_dir):
         for r in records:
             index[(ds, r["coroutines"])] = r
 
-    header = f"{'cops':>6}  " + "  ".join(f"{ds:>{col}}" for ds in ds_names) + "  (ops/s)"
+    header = f"{'cops':>6}  " + "  ".join(f"{ds_style(ds)['label']:>{col}}" for ds in ds_names) + "  (ops/s)"
     separator = "-" * len(header)
     rows = []
     for cops in all_cops:
@@ -278,7 +270,7 @@ def print_summary(targets, output_dir):
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
-ALL_STATS = ["throughput", "push_pop", "per_thread", "summary"]
+ALL_STATS = ["throughput", "push_pop", "per_thread", "summary"] + EXTRA_STATS
 
 def main():
     parser = argparse.ArgumentParser(
@@ -306,7 +298,12 @@ Examples:
                         help="Where to save plots (default: --results-dir)")
     parser.add_argument("--stat", nargs="+", default=ALL_STATS, choices=ALL_STATS,
                         help="Which plots to generate")
+    add_arguments(parser)
     args = parser.parse_args()
+    try:
+        load_styles(args.ds_styles)
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
 
     if not args.results_dir.is_dir():
         print("Error: --results-dir '{}' not found.".format(args.results_dir), file=sys.stderr)
@@ -327,6 +324,7 @@ Examples:
     print()
 
     stat_set = set(args.stat)
+    plot_extra_metrics(targets, output_dir, stat_set, args.latency_operations)
     if "throughput" in stat_set: plot_throughput(targets, output_dir)
     if "push_pop"   in stat_set: plot_push_pop(targets, output_dir)
     if "per_thread" in stat_set: plot_per_thread_boxplot(targets, output_dir)

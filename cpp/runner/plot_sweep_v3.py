@@ -49,11 +49,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+from sweep_plot_common import (
+    AXIS_LABELS, EXTRA_FIELDS, EXTRA_STATS, add_arguments, ds_style,
+    enrich_metrics, load_styles, plot_extra_metrics,
+)
 
 # ── style ─────────────────────────────────────────────────────────────────────
-DS_COLORS  = ["#4C8EDA", "#E06C4B", "#3BAA72", "#9B6DD4",
-               "#E0B84B", "#4BC7CE", "#D45E8A", "#7A7A7A"]
-DS_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 GRID_COLOR  = "#E8E8E8"
 SPINE_COLOR = "#CCCCCC"
 
@@ -88,6 +89,10 @@ def aggregate(values, agg):
     when bands are not applicable.
     """
     arr = np.array(values, dtype=float)
+    # Missing/overflow percentiles must not become zero or silently disappear
+    # from repeat aggregation (which would bias the slow tail downward).
+    if not np.isfinite(arr).all():
+        return float("nan"), 0.0, 0.0
     if len(arr) == 0:
         return float("nan"), 0.0, 0.0
 
@@ -120,6 +125,7 @@ def load_ds_dir(ds_dir):
         with open(p) as f:
             data = json.load(f)
         data["coroutines"] = cops
+        enrich_metrics(data)
         run_ms   = data.get("max_time_thread_terminate_total", 0) / 1e6
         total    = data.get("sum_num_operations_total", 0)
         work     = data.get("work_iteration", 0)
@@ -214,6 +220,8 @@ def discover_targets(results_dir, requested, repeat_names, agg):
         "max_time_thread_terminate_total",
     ]
 
+    SCALAR_FIELDS += EXTRA_FIELDS
+
     targets = {}
     for ds, cops_map in sorted(raw.items()):
         records_out = []
@@ -222,7 +230,7 @@ def discover_targets(results_dir, requested, repeat_names, agg):
             out  = {"coroutines": cops, "run_count": len(recs), "_raw_recs": recs}
 
             for field in SCALAR_FIELDS:
-                vals = [r.get(field, 0) for r in recs]
+                vals = [r.get(field, float("nan") if field in EXTRA_FIELDS else 0) for r in recs]
                 c, lo, hi = aggregate(vals, agg)
                 out[field]          = c
                 out[field + "_lo"]  = lo
@@ -266,7 +274,7 @@ def setup_xaxis(ax, ticks):
     ax.set_xscale("log", base=2)
     ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.set_xticks(ticks)
-    ax.set_xlabel("coroutines per thread", fontsize=10)
+    ax.set_xlabel(AXIS_LABELS["x"], fontsize=10)
 
 
 def band_label(agg):
@@ -284,11 +292,11 @@ def plot_throughput(targets, output_dir, agg, multi):
         y      = [r["throughput_ops_per_sec"]  for r in records]
         y_lo   = [r["throughput_ops_per_sec_lo"] for r in records]
         y_hi   = [r["throughput_ops_per_sec_hi"] for r in records]
-        color  = DS_COLORS[i % len(DS_COLORS)]
-        marker = DS_MARKERS[i % len(DS_MARKERS)]
+        color  = ds_style(ds)["color"]
+        marker = ds_style(ds)["marker"]
 
-        ax.plot(x, y, marker=marker, linewidth=2, label=ds,
-                color=color, markersize=6, markeredgewidth=0)
+        ax.plot(x, y, marker=marker, linewidth=2, label=ds_style(ds)["label"],
+                color=color, markersize=6)
 
         if multi and any(lo > 0 or hi > 0 for lo, hi in zip(y_lo, y_hi)):
             y_arr  = np.array(y)
@@ -299,7 +307,7 @@ def plot_throughput(targets, output_dir, agg, multi):
 
     ticks = all_cops(targets)
     setup_xaxis(ax, ticks)
-    ax.set_ylabel("throughput  (ops / s)", fontsize=10)
+    ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
 
     agg_note = " [{}{}]".format(agg, " " + band_label(agg) if band_label(agg) else "") if multi else ""
     ax.set_title("throughput vs coroutines" + agg_note, fontsize=11, fontweight="bold")
@@ -322,15 +330,15 @@ def plot_combined_throughput(targets, output_dir, agg, multi):
     import matplotlib.lines as mlines
 
     # Line styles: solid for DS ops, dashed for work
-    STYLE_DS   = dict(linestyle="solid",  linewidth=2, markersize=6, markeredgewidth=0)
-    STYLE_WORK = dict(linestyle="dashed", linewidth=2, markersize=5, markeredgewidth=0)
+    STYLE_DS   = dict(linestyle="solid",  linewidth=2, markersize=6)
+    STYLE_WORK = dict(linestyle="dashed", linewidth=2, markersize=5)
 
     fig, ax = plt.subplots(figsize=(9, 5))
     legend_handles = []
 
     for i, (ds, records) in enumerate(targets.items()):
-        color  = DS_COLORS[i % len(DS_COLORS)]
-        marker = DS_MARKERS[i % len(DS_MARKERS)]
+        color  = ds_style(ds)["color"]
+        marker = ds_style(ds)["marker"]
         x      = [r["coroutines"] for r in records]
 
         def _plot_series(field, style):
@@ -348,7 +356,7 @@ def plot_combined_throughput(targets, output_dir, agg, multi):
         _plot_series("work_throughput_ops_per_sec",  STYLE_WORK)
 
         # Combined legend handle: two short lines, same colour
-        h = mlines.Line2D([], [], color=color, label=ds,
+        h = mlines.Line2D([], [], color=color, label=ds_style(ds)["label"],
                           linestyle="solid", linewidth=2)
         legend_handles.append(h)
 
@@ -360,7 +368,7 @@ def plot_combined_throughput(targets, output_dir, agg, multi):
 
     ticks = all_cops(targets)
     setup_xaxis(ax, ticks)
-    ax.set_ylabel("throughput  (ops / s)", fontsize=10)
+    ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
     agg_note = " [{}]".format(agg) if multi else ""
     ax.set_title("DS vs work throughput vs coroutines" + agg_note,
                  fontsize=11, fontweight="bold")
@@ -380,8 +388,8 @@ def plot_push_pop(targets, output_dir, agg, multi):
 
     for i, (ds, records) in enumerate(targets.items()):
         x      = [r["coroutines"] for r in records]
-        color  = DS_COLORS[i % len(DS_COLORS)]
-        marker = DS_MARKERS[i % len(DS_MARKERS)]
+        color  = ds_style(ds)["color"]
+        marker = ds_style(ds)["marker"]
 
         for ax, field, label in [
             (ax_push, "sum_num_pushes_total", "pushes"),
@@ -390,7 +398,7 @@ def plot_push_pop(targets, output_dir, agg, multi):
             y    = [r.get(field, 0)          for r in records]
             y_lo = [r.get(field + "_lo", 0)  for r in records]
             y_hi = [r.get(field + "_hi", 0)  for r in records]
-            ax.plot(x, y, marker=marker, linewidth=2, label=ds,
+            ax.plot(x, y, marker=marker, linewidth=2, label=ds_style(ds)["label"],
                     color=color, markersize=6)
             if multi and any(lo > 0 or hi > 0 for lo, hi in zip(y_lo, y_hi)):
                 y_arr = np.array(y)
@@ -401,7 +409,7 @@ def plot_push_pop(targets, output_dir, agg, multi):
     ticks = all_cops(targets)
     for ax, title in [(ax_push, "total pushes"), (ax_pop, "total pops")]:
         setup_xaxis(ax, ticks)
-        ax.set_ylabel("total operations", fontsize=10)
+        ax.set_ylabel(AXIS_LABELS["operations"], fontsize=10)
         ax.set_title(title, fontsize=11, fontweight="bold")
         ax.legend(framealpha=0.4, fontsize=9)
         style_ax(ax)
@@ -431,26 +439,28 @@ def plot_per_thread_boxplot(targets, output_dir):
                 labels.append(str(r["coroutines"]))
 
         if not dists:
-            ax.set_title("{}\n(no per-thread data)".format(ds))
+            ax.set_title("{}\n(no per-thread data)".format(ds_style(ds)["label"]))
             continue
 
-        color = DS_COLORS[i % len(DS_COLORS)]
+        color = ds_style(ds)["color"]
         bp = ax.boxplot(
-            dists, labels=labels, patch_artist=True,
+            dists, patch_artist=True,
             medianprops=dict(color="#222222", linewidth=2),
             whiskerprops=dict(color=SPINE_COLOR),
             capprops=dict(color=SPINE_COLOR),
             flierprops=dict(marker="x", color="#B0B0B0", markersize=5),
         )
+        ax.set_xticks(range(1, len(labels) + 1))
+        ax.set_xticklabels(labels)
         for patch in bp["boxes"]:
-            patch.set_facecolor(color + "33")
+            patch.set_facecolor(matplotlib.colors.to_rgba(color, 0.2))
             patch.set_edgecolor(color)
 
         n_runs = max((r.get("run_count", 1) for r in records), default=1)
         run_note = " (pooled {} runs)".format(n_runs) if n_runs > 1 else ""
-        ax.set_title(ds + run_note, fontsize=10, fontweight="bold")
-        ax.set_xlabel("coroutines per thread", fontsize=9)
-        ax.set_ylabel("ops per thread", fontsize=9)
+        ax.set_title(ds_style(ds)["label"] + run_note, fontsize=10, fontweight="bold")
+        ax.set_xlabel(AXIS_LABELS["x"], fontsize=9)
+        ax.set_ylabel(AXIS_LABELS["per_thread"], fontsize=9)
         style_ax(ax)
 
     fig.suptitle("per-thread op distribution", fontsize=11, fontweight="bold", y=1.02)
@@ -468,7 +478,7 @@ def plot_repeats_scatter(targets, output_dir, run_dirs):
     """
     for i, (ds, records) in enumerate(targets.items()):
         fig, ax = plt.subplots(figsize=(9, 5))
-        color = DS_COLORS[i % len(DS_COLORS)]
+        color = ds_style(ds)["color"]
 
         # scatter individual runs
         for r in records:
@@ -481,13 +491,13 @@ def plot_repeats_scatter(targets, output_dir, run_dirs):
         # aggregated line
         x = [r["coroutines"]            for r in records]
         y = [r["throughput_ops_per_sec"] for r in records]
-        ax.plot(x, y, color=color, linewidth=2, marker="o",
+        ax.plot(x, y, color=color, linewidth=2, marker=ds_style(ds)["marker"],
                 markersize=5, zorder=3, label="aggregated")
 
         ticks = sorted(set(x))
         setup_xaxis(ax, ticks)
-        ax.set_ylabel("throughput  (ops / s)", fontsize=10)
-        ax.set_title("{} — per-run scatter ({} runs)".format(ds, len(run_dirs)),
+        ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
+        ax.set_title("{} — per-run scatter ({} runs)".format(ds_style(ds)["label"], len(run_dirs)),
                      fontsize=11, fontweight="bold")
         ax.legend(framealpha=0.4, fontsize=9)
         style_ax(ax)
@@ -510,7 +520,7 @@ def print_summary(targets, output_dir, agg, multi):
 
     agg_note = " [{}]".format(agg) if multi else ""
     header = "{:>6}  ".format("cops") + "  ".join(
-        "{:>{}}".format(ds, col) for ds in ds_names
+        "{:>{}}".format(ds_style(ds)["label"], col) for ds in ds_names
     ) + "  (ops/s" + agg_note + ")"
     sep  = "-" * len(header)
     rows = []
@@ -545,7 +555,7 @@ def print_summary(targets, output_dir, agg, multi):
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-ALL_STATS = ["throughput", "combined_throughput", "push_pop", "per_thread", "repeats_scatter", "summary"]
+ALL_STATS = ["throughput", "combined_throughput", "push_pop", "per_thread", "repeats_scatter", "summary"] + EXTRA_STATS
 
 def main():
     parser = argparse.ArgumentParser(
@@ -581,7 +591,12 @@ Examples:
                         help="Where to save plots (default: --results-dir)")
     parser.add_argument("--stat", nargs="+", default=ALL_STATS, choices=ALL_STATS,
                         help="Which plots to generate")
+    add_arguments(parser)
     args = parser.parse_args()
+    try:
+        load_styles(args.ds_styles)
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
 
     if not args.results_dir.is_dir():
         print("Error: --results-dir '{}' not found.".format(args.results_dir),
@@ -614,6 +629,7 @@ Examples:
     print()
 
     stat_set = set(args.stat)
+    plot_extra_metrics(targets, output_dir, stat_set, args.latency_operations, args.agg, multi)
     if "throughput"      in stat_set: plot_throughput(targets, output_dir, args.agg, multi)
     if "combined_throughput" in stat_set: plot_combined_throughput(targets, output_dir, args.agg, multi)
     if "push_pop"        in stat_set: plot_push_pop(targets, output_dir, args.agg, multi)

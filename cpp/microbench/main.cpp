@@ -180,6 +180,7 @@ GSTATS_DECLARE_STATS_OBJECT(MAX_THREADS_POW2);
 
 #include "globals_t_impl.h"
 #include "statistics.h"
+#include "worker_progress.h"
 #include "parse_argument.h"
 
 using namespace microbench;
@@ -1028,6 +1029,18 @@ int main(int argc, char** argv) {
     if (result_statistic_to_file) {
         nlohmann::json json;
         GSTATS_JSON(json);
+        // Reuse completed-operation counters; no extra instrumentation or yields.
+        std::vector<uint64_t> operations;
+        if (json.contains("sum_num_operations_by_thread"))
+            operations = json["sum_num_operations_by_thread"].get<std::vector<uint64_t>>();
+        const auto progress = summarize_worker_progress(
+            operations, g->benchParameters->test->get_num_threads());
+        json["worker_count"] = progress.worker_count;
+        json["zero_progress_workers"] = progress.zero_progress_workers;
+        json["zero_progress_percent"] = std::isfinite(progress.zero_progress_percent)
+            ? nlohmann::json(progress.zero_progress_percent) : nlohmann::json(nullptr);
+        json["jain_fairness"] = std::isfinite(progress.jain_fairness)
+            ? nlohmann::json(progress.jain_fairness) : nlohmann::json(nullptr);
         json["work_iteration"] = g_coro_work_iterations;
         if (LATENCY_ENABLED) {
             auto& latency = json["latency_ns"];
