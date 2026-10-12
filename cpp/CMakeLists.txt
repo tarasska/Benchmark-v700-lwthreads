@@ -103,8 +103,9 @@ set(QUEUE_DS
     elimination_stack
     elimination_stack_opt
     
-    # queue_global_lock
-    # mcs_queue_fc
+    queue_global_lock
+    mcs_queue_fc
+    mcs_queue_lf
     # michael_scott_queue_fc
     # michael_scott_queue_lf
 )
