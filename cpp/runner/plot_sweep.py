@@ -31,7 +31,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from sweep_plot_common import (
     AXIS_LABELS, EXTRA_STATS, add_arguments, ds_style,
-    enrich_metrics, load_styles, plot_extra_metrics,
+    configure_ds_styles, discover_style_names, enrich_metrics, load_styles, plot_extra_metrics,
 )
 
 # ── style ────────────────────────────────────────────────────────────────────
@@ -309,6 +309,7 @@ Examples:
         print("Error: --results-dir '{}' not found.".format(args.results_dir), file=sys.stderr)
         sys.exit(1)
 
+    configure_ds_styles(discover_style_names([args.results_dir]))
     targets = discover_targets(args.results_dir, set(args.ds))
     if not targets:
         print("No DS result directories found in", args.results_dir, file=sys.stderr)

@@ -1,5 +1,5 @@
 """Shared metric extraction, labels and DS appearance for both sweep plotters."""
-import hashlib
+import colorsys
 import json
 import math
 import sys
@@ -33,6 +33,7 @@ EXTRA_STATS = ["latency", "latency_mean", "latency_p95", "latency_p99"] + PROGRE
 PALETTE = ["#4C8EDA", "#E06C4B", "#3BAA72", "#9B6DD4", "#E0B84B", "#4BC7CE", "#D45E8A", "#7A7A7A"]
 MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 DS_STYLES = {}
+AUTO_STYLES = {}
 
 
 def load_styles(path):
@@ -51,12 +52,47 @@ def load_styles(path):
             MarkerStyle(style["marker"] or "")
     DS_STYLES.clear()
     DS_STYLES.update(styles)
+    AUTO_STYLES.clear()
+
+
+def discover_style_names(run_dirs):
+    """Discover the full DS universe before --ds filtering, without reading JSON."""
+    return {child.name for root in run_dirs for child in root.iterdir()
+            if child.is_dir() and any(child.glob("result_cops*.json"))}
+
+
+def _color_candidates():
+    yield from PALETTE
+    yield from plt.get_cmap("tab20").colors
+    # Extend rather than wrap the finite palette. All candidates are checked
+    # against reserved colors; explicit duplicate user colors remain permitted.
+    index = 0
+    while True:
+        yield colorsys.hsv_to_rgb((index * 0.618033988749895) % 1, 0.65, 0.78)
+        index += 1
+
+
+def configure_ds_styles(names):
+    """Allocate distinct defaults for the complete, sorted comparison universe."""
+    AUTO_STYLES.clear()
+    reserved = {colors.to_rgba(style["color"]) for style in DS_STYLES.values()
+                if "color" in style}
+    candidates = _color_candidates()
+    for index, name in enumerate(sorted(set(names) | set(DS_STYLES))):
+        style = DS_STYLES.get(name, {})
+        color = style.get("color")
+        if color is None:
+            color = next(c for c in candidates if colors.to_rgba(c) not in reserved)
+            reserved.add(colors.to_rgba(color))
+        AUTO_STYLES[name] = dict(color=color, marker=MARKERS[index % len(MARKERS)])
 
 
 def ds_style(name):
-    # Stable defaults even when --ds filters or directory discovery order change.
-    index = int.from_bytes(hashlib.sha256(name.encode()).digest()[:4], "big")
-    result = dict(label=name, color=PALETTE[index % len(PALETTE)], marker=MARKERS[index % len(MARKERS)])
+    if name not in AUTO_STYLES:
+        # Convenience for callers plotting one DS directly. CLI entry points
+        # register their complete universe before drawing any figures.
+        configure_ds_styles(set(AUTO_STYLES) | {name})
+    result = dict(label=name, **AUTO_STYLES[name])
     result.update(DS_STYLES.get(name, {}))
     if result["marker"] is None:
         result["marker"] = ""

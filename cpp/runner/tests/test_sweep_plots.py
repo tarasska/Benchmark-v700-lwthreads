@@ -18,6 +18,34 @@ class SweepTests(unittest.TestCase):
     def tearDown(self):
         common.load_styles(None)
 
+    def test_default_colors_are_unique_and_order_independent(self):
+        names = [f"stack_{i}" for i in range(40)]
+        common.configure_ds_styles(names)
+        original = {name: common.colors.to_rgba(common.ds_style(name)["color"]) for name in names}
+        self.assertEqual(len(set(original.values())), len(names))
+        common.configure_ds_styles(reversed(names))
+        self.assertEqual(original, {name: common.colors.to_rgba(common.ds_style(name)["color"])
+                                    for name in names})
+
+    def test_explicit_colors_are_reserved_and_filter_does_not_reassign(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            style = root / "styles.json"
+            style.write_text(json.dumps({"custom": {"color": common.PALETTE[0]}}))
+            common.load_styles(style)
+            for name in ("a", "b", "custom"):
+                folder = root / name
+                folder.mkdir()
+                (folder / "result_cops4.json").write_text("{}")
+            common.configure_ds_styles(common.discover_style_names([root]))
+            before = {name: common.ds_style(name)["color"] for name in ("a", "b", "custom")}
+            self.assertEqual(before["custom"], common.PALETTE[0])
+            self.assertEqual(len({common.colors.to_rgba(c) for c in before.values()}), 3)
+            # Filtering operates on data only; appearance uses all discovered IDs.
+            filtered = plot_sweep.discover_targets(root, {"b"})
+            self.assertEqual(list(filtered), ["b"])
+            self.assertEqual(common.ds_style("b")["color"], before["b"])
+
     def test_missing_and_overflow_are_not_zero(self):
         data = {"latency_ns": {"all": {"mean": 123, "p95": 150, "p99": None}}}
         common.enrich_metrics(data)

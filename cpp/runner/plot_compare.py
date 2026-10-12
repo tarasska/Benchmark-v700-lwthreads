@@ -36,7 +36,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from sweep_plot_common import (
     AXIS_LABELS, EXTRA_FIELDS, EXTRA_STATS, add_arguments, ds_style,
-    enrich_metrics, load_styles, selected_metric_fields,
+    configure_ds_styles, discover_style_names, enrich_metrics, load_styles, selected_metric_fields,
 )
 
 # ── style ─────────────────────────────────────────────────────────────────────
@@ -417,6 +417,8 @@ Examples:
         print("No data loaded.", file=sys.stderr)
         sys.exit(1)
 
+    configure_ds_styles(discover_style_names(
+        [directory for _, root in args.runs for directory in find_repeat_dirs(root)]))
     args.output_dir.mkdir(parents=True, exist_ok=True)
     print("\nOutput:", args.output_dir)
     print()

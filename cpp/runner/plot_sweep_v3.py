@@ -51,7 +51,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from sweep_plot_common import (
     AXIS_LABELS, EXTRA_FIELDS, EXTRA_STATS, add_arguments, ds_style,
-    enrich_metrics, load_styles, plot_extra_metrics,
+    configure_ds_styles, discover_style_names, enrich_metrics, load_styles, plot_extra_metrics,
 )
 
 # ── style ─────────────────────────────────────────────────────────────────────
@@ -610,6 +610,7 @@ Examples:
         sys.exit(1)
 
     targets, multi, run_dirs = result
+    configure_ds_styles(discover_style_names([root for _, root in run_dirs]))
 
     if not targets:
         print("No matching DS data found.", file=sys.stderr)

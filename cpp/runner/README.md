@@ -39,7 +39,14 @@ Matplotlib color names and hex strings. Marker examples: `o`, `s`, `^`, `D`, `x`
 Settings apply to old and new plots, titles and legends. `--ds` still selects the
 original identifiers; labels do not rename result directories or output files.
 Configured appearance is independent of filtering, ordering and repeat count.
-Unconfigured targets receive deterministic defaults based on their identifiers.
+Unconfigured targets receive distinct colors allocated in sorted identifier order
+from the full set of result directories, before `--ds` filtering. All explicitly
+configured colors are reserved first. The palette is extended instead of wrapping
+when it runs out. Explicitly assigning the same color to two targets is allowed.
+Adding/removing result directories or changing the set of compared setups can
+change automatic colors; use the JSON file to keep colors fixed across different
+experiments. Distinct RGB values do not guarantee easy visual distinction for
+very large numbers of lines.
 
 Edit `AXIS_LABELS` in `sweep_plot_common.py` to change X and Y labels for both
 scripts. X remains the `N` from `result_cops<N>.json`, as in the original scripts;
