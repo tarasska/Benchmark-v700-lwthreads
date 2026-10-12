@@ -33,17 +33,23 @@ struct alignas(CACHE_LINE_SIZE) mqueue {
 private:
    alignas(CACHE_LINE_SIZE) atomic<mqueue_node<K>*> head;
    alignas(CACHE_LINE_SIZE) atomic<mqueue_node<K>*> tail;
+   // Keep the original dummy as the owner of the entire allocation chain.
+   // A linked node's next is never reset, even after head advances past it.
+   // No nodes may be reclaimed/reused while an operation can still reference them.
+   mqueue_node<K>* const allocation_head;
 
 
 public:
-   mqueue() {
-       mqueue_node<K>* dummy = new mqueue_node<K>();
+   mqueue() : allocation_head(new mqueue_node<K>()) {
+       mqueue_node<K>* dummy = allocation_head;
        head.store(dummy, memory_order_relaxed);
        tail.store(dummy, memory_order_relaxed);
    }
 
    ~mqueue() {
-       mqueue_node<K>* curr = head.load(memory_order_relaxed);
+       // Requires all operations to have finished (the benchmark joins workers).
+       // This chain includes both popped nodes and the still-live queue.
+       mqueue_node<K>* curr = allocation_head;
        while (curr != nullptr) {
            mqueue_node<K>* temp = curr;
            curr = curr->next.load(memory_order_relaxed);
@@ -102,7 +108,8 @@ public:
                            first, next,
                            memory_order_release,
                            memory_order_acquire)) {
-                       delete first;
+                       // Retain first until destruction: other operations can
+                       // still hold first/next, including across a fiber yield.
                        return make_unique<K>(result);
                    }
                }
