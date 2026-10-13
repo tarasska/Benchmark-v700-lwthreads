@@ -98,6 +98,7 @@ set(QUEUE_DS
     treiber_stack_16fc
     treiber_stack_4fc_opt
     treiber_stack_fc_opt
+    treiber_stack_fc_opt_backoff
     # stack_nasl_mcs
     stack_global_lock
     elimination_stack
