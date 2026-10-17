@@ -116,3 +116,20 @@ Edit `AXIS_LABELS["compare_x"]` for the comparison X axis;
 `AXIS_LABELS["work_throughput"]` controls the work-throughput Y label. Other
 Y labels are shared with the sweep scripts. Setup line styles remain editable
 in `SETUP_STYLES` inside `plot_compare.py`.
+
+
+## CPU core reference line
+
+`plot_sweep_v3.py` and `plot_compare.py` accept `--cores 16` to draw a gray
+dashed vertical line at X=16 with a `16 cores` annotation. Omit the option to
+leave the graphs unchanged. The value must be a positive integer.
+
+```sh
+python3 plot_sweep_v3.py --results-dir sweep_results --cores 16 --stat throughput latency
+python3 plot_compare.py --run "A /results/a" --run "B /results/b" --cores 16
+```
+
+The reference is included on numeric-X charts (throughput, latency, progress,
+scatter and combined plots); the categorical per-thread boxplot is unchanged.
+It marks the supplied X value directly: no conversion from coroutines per
+carrier to total logical workers is performed.

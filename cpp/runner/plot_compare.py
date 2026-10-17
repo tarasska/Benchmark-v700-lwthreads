@@ -36,6 +36,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from sweep_plot_common import (
     AXIS_LABELS, EXTRA_FIELDS, EXTRA_STATS, add_arguments, ds_style,
+    add_core_argument, set_core_count, draw_core_marker,
     configure_ds_styles, discover_style_names, enrich_metrics, load_styles, selected_metric_fields,
 )
 
@@ -187,6 +188,7 @@ def setup_xaxis(ax, ticks):
     ax.set_xscale("log", base=2)
     ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.set_xticks(ticks)
+    draw_core_marker(ax)
     ax.set_xlabel(AXIS_LABELS["compare_x"], fontsize=10)
 
 
@@ -387,7 +389,9 @@ Examples:
     parser.add_argument("--output-dir", type=Path, default=Path("compare_output"),
                         help="Directory for output PNGs (default: compare_output/)")
     add_arguments(parser)
+    add_core_argument(parser)
     args = parser.parse_args()
+    set_core_count(args.cores)
     try:
         load_styles(args.ds_styles)
     except (ValueError, OSError) as error:

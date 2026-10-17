@@ -1,4 +1,5 @@
 """Shared metric extraction, labels and DS appearance for both sweep plotters."""
+import argparse
 import colorsys
 import json
 import math
@@ -128,6 +129,40 @@ def enrich_metrics(data):
         data[field] = finite_number(data.get(field))
 
 
+# Optional reference shared by comparison and sweep-v3 plotting functions.
+CORE_COUNT = None
+
+
+def positive_core_count(value):
+    try:
+        count = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("--cores must be a positive integer")
+    if count <= 0:
+        raise argparse.ArgumentTypeError("--cores must be a positive integer")
+    return count
+
+
+def add_core_argument(parser):
+    parser.add_argument("--cores", type=positive_core_count, default=None,
+                        help="Mark x=CORES with a gray dashed vertical line")
+
+
+def set_core_count(count):
+    global CORE_COUNT
+    CORE_COUNT = count
+
+
+def draw_core_marker(ax):
+    if CORE_COUNT is not None:
+        ax.axvline(CORE_COUNT, color="#888888", linestyle="--", linewidth=1.3,
+                   zorder=1, label="_nolegend_")
+        ax.annotate(f"{CORE_COUNT} cores", xy=(CORE_COUNT, 1),
+                    xycoords=ax.get_xaxis_transform(), xytext=(4, -5),
+                    textcoords="offset points", ha="left", va="top",
+                    fontsize=8, color="#777777")
+
+
 def add_arguments(parser):
     parser.add_argument("--ds-styles", type=Path, help="JSON file mapping DS IDs to label/color/marker")
     parser.add_argument("--latency-operations", nargs="+", choices=LATENCY_OPERATIONS, default=["all"],
@@ -169,6 +204,7 @@ def plot_extra_metrics(targets, output_dir, stats, operations, agg=None, multi=F
         ax.set_xscale("log", base=2)
         ax.set_xticks(ticks)
         ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+        draw_core_marker(ax)
         ax.set_xlabel(AXIS_LABELS["x"])
         ax.set_ylabel(ylabel)
         ax.set_title(ylabel + (f" [{agg} across runs]" if multi else ""))
