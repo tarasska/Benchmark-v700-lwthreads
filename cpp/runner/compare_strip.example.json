@@ -1,0 +1,8 @@
+{
+  "thread_types": ["Boost Fibers", "Argobots"],
+  "panels": [
+    {"cores": 4, "paths": ["results/4cores/boost", "results/4cores/argobots"]},
+    {"cores": 8, "paths": ["results/8cores/boost", "results/8cores/argobots"]},
+    {"cores": 16, "paths": ["results/16cores/boost", "results/16cores/argobots"]}
+  ]
+}

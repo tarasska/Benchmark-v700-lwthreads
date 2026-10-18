@@ -219,25 +219,14 @@ def _draw_series(ax, x, y, y_lo, y_hi, color, marker, style, multi, field=None):
         ax.fill_between(x, lower, upper, alpha=0.10, color=color)
 
 
-def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename):
-    """
-    Generic comparison plot: one line per (ds × setup) combination.
-    Legend split into two sections: colours = DS, styles = setup labels.
-    """
-    if field in EXTRA_FIELDS and not any(
-        np.isfinite(r.get(field, float("nan")))
-        for _, targets in setups for records in targets.values() for r in records
-    ):
-        print(f"Warning: no finite values for {field}; plot skipped.", file=sys.stderr)
-        return
+def draw_comparison_axes(ax, setups, field, ylabel):
+    """Draw on an existing axis; used by single plots and comparison strips."""
     ds_names = all_ds_names(setups)
     multi    = any(
         any(r.get("run_count", 1) > 1 for r in recs)
         for _, targets in setups
         for recs in targets.values()
     )
-
-    fig, ax = plt.subplots(figsize=(10, 5.5))
 
     for setup_idx, (label, targets) in enumerate(setups):
         style  = SETUP_STYLES[setup_idx % len(SETUP_STYLES)]
@@ -278,6 +267,21 @@ def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename
     elif field in EXTRA_FIELDS:
         ax.set_ylim(bottom=0)
     style_ax(ax)
+
+
+def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename):
+    """
+    Generic comparison plot: one line per (ds × setup) combination.
+    Legend split into two sections: colours = DS, styles = setup labels.
+    """
+    if field in EXTRA_FIELDS and not any(
+        np.isfinite(r.get(field, float("nan")))
+        for _, targets in setups for records in targets.values() for r in records
+    ):
+        print(f"Warning: no finite values for {field}; plot skipped.", file=sys.stderr)
+        return
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    draw_comparison_axes(ax, setups, field, ylabel)
     fig.tight_layout()
 
     out = output_dir / filename
