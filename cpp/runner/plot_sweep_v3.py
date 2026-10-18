@@ -67,6 +67,7 @@ plt.rcParams.update({
     "grid.color":        GRID_COLOR,
     "grid.linewidth":    0.8,
     "figure.dpi":        150,
+    "savefig.dpi":       300,  # Publication-quality PNG export, including shared metric plots.
 })
 
 RESULT_PAT = re.compile(r"result_cops(\d+)\.json")

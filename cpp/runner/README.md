@@ -133,3 +133,12 @@ The reference is included on numeric-X charts (throughput, latency, progress,
 scatter and combined plots); the categorical per-thread boxplot is unchanged.
 It marks the supplied X value directly: no conversion from coroutines per
 carrier to total logical workers is performed.
+
+
+## Publication export
+
+`plot_sweep_v3.py` and `plot_compare.py` save PNG figures at 300 dpi, including
+latency and worker-progress charts. A 9 × 5 inch figure produces 2700 × 1500
+pixels (tight bounding-box cropping may change the dimensions). PNG preserves
+text and lines without JPEG compression artifacts. Keep the placed image size
+no larger than its export size to retain at least 300 effective dpi.
