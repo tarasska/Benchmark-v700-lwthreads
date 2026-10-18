@@ -14,18 +14,28 @@ import numpy as np
 
 # Edit axis labels here; used by both entry points.
 AXIS_LABELS = {
-    "x": "coroutines per thread",
-    "compare_x": "threads (see 'setup' label)",
-    "work_throughput": "work throughput (iter / s)",
-    "throughput": "throughput (ops / s)",
-    "operations": "total operations",
-    "per_thread": "ops per thread",
-    "latency": "latency (ns)",
-    "zero_progress_percent": "workers without completed operations (%)",
-    "jain_fairness": "Jain fairness index",
-    "zero_progress_workers": "workers without completed operations",
-    "worker_count": "logical workers",
+    "x": "Число потоков",
+    "compare_x": "Число потоков",
+    "work_throughput": "Производительность фоновой работы, итераций/с",
+    "throughput": "Пропускная способность, операций/с",
+    "operations": "Число операций",
+    "push": "Число операций добавления",
+    "pop": "Число операций извлечения",
+    "per_thread": "Число операций на поток",
+    "latency": "Задержка, нс",
+    "zero_progress_percent": "Доля потоков без завершённых операций, %",
+    "jain_fairness": "Индекс справедливости Джейна",
+    "zero_progress_workers": "Число потоков без завершённых операций",
+    "worker_count": "Число логических потоков",
 }
+OPERATION_LABELS = {
+    "all": "все операции", "insert": "вставка", "remove": "удаление",
+    "get": "поиск", "contains": "проверка наличия", "range_query": "диапазонный запрос",
+    "push": "добавление", "pop": "извлечение",
+}
+LATENCY_LABELS = {"mean": "Средняя задержка", "p95": "95-й перцентиль задержки",
+                  "p99": "99-й перцентиль задержки"}
+
 LATENCY_OPERATIONS = ["all", "insert", "remove", "get", "contains", "range_query", "push", "pop"]
 PROGRESS_FIELDS = ["zero_progress_percent", "jain_fairness", "zero_progress_workers", "worker_count"]
 LATENCY_FIELDS = [f"latency_{op}_{stat}_ns" for op in LATENCY_OPERATIONS for stat in ("mean", "p95", "p99")]
@@ -157,7 +167,7 @@ def draw_core_marker(ax):
     if CORE_COUNT is not None:
         ax.axvline(CORE_COUNT, color="#888888", linestyle="--", linewidth=1.3,
                    zorder=1, label="_nolegend_")
-        ax.annotate(f"{CORE_COUNT} cores", xy=(CORE_COUNT, 1),
+        ax.annotate(f"Число ядер: {CORE_COUNT}", xy=(CORE_COUNT, 1),
                     xycoords=ax.get_xaxis_transform(), xytext=(4, -5),
                     textcoords="offset points", ha="left", va="top",
                     fontsize=8, color="#777777")
@@ -173,7 +183,7 @@ def selected_metric_fields(stats, operations):
     fields = [(field, AXIS_LABELS[field]) for field in PROGRESS_FIELDS if field in stats]
     for stat in ("mean", "p95", "p99"):
         if "latency" in stats or f"latency_{stat}" in stats:
-            fields.extend((f"latency_{op}_{stat}_ns", f"{op}: {stat} {AXIS_LABELS['latency']}")
+            fields.extend((f"latency_{op}_{stat}_ns", f"{LATENCY_LABELS[stat]} ({OPERATION_LABELS[op]}), нс")
                           for op in operations)
     return fields
 
@@ -207,12 +217,11 @@ def plot_extra_metrics(targets, output_dir, stats, operations, agg=None, multi=F
         draw_core_marker(ax)
         ax.set_xlabel(AXIS_LABELS["x"])
         ax.set_ylabel(ylabel)
-        ax.set_title(ylabel + (f" [{agg} across runs]" if multi else ""))
         if field in ("zero_progress_percent", "jain_fairness"):
             ax.set_ylim(0, 100 if field == "zero_progress_percent" else 1)
         else:
             ax.set_ylim(bottom=0)
-        ax.legend(framealpha=0.4)
+        ax.legend(title="Структура данных", framealpha=0.4)
         fig.tight_layout()
         out = output_dir / f"{field}_vs_coroutines.png"
         fig.savefig(out)

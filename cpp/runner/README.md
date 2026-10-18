@@ -121,7 +121,7 @@ in `SETUP_STYLES` inside `plot_compare.py`.
 ## CPU core reference line
 
 `plot_sweep_v3.py` and `plot_compare.py` accept `--cores 16` to draw a gray
-dashed vertical line at X=16 with a `16 cores` annotation. Omit the option to
+dashed vertical line at X=16 with a `Число ядер: 16` annotation. Omit the option to
 leave the graphs unchanged. The value must be a positive integer.
 
 ```sh
@@ -142,3 +142,13 @@ latency and worker-progress charts. A 9 × 5 inch figure produces 2700 × 1500
 pixels (tight bounding-box cropping may change the dimensions). PNG preserves
 text and lines without JPEG compression artifacts. Keep the placed image size
 no larger than its export size to retain at least 300 effective dpi.
+
+
+## Russian publication labels
+
+The sweep and comparison plots use Russian axis and legend labels. X is
+`Число потоков`; the DS legend is `Структура данных` and the setup legend is
+`Вид потоков`. Figure and subplot titles are omitted for use with article captions.
+DS display names still come from the style JSON, and setup names from `--run`;
+these user-provided names are preserved. Edit `AXIS_LABELS`, `OPERATION_LABELS`
+and `LATENCY_LABELS` in `sweep_plot_common.py` to customize metric labels.

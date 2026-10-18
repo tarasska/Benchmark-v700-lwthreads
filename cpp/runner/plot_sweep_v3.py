@@ -312,9 +312,7 @@ def plot_throughput(targets, output_dir, agg, multi):
     setup_xaxis(ax, ticks)
     ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
 
-    agg_note = " [{}{}]".format(agg, " " + band_label(agg) if band_label(agg) else "") if multi else ""
-    ax.set_title("throughput vs coroutines" + agg_note, fontsize=11, fontweight="bold")
-    ax.legend(framealpha=0.4, fontsize=9)
+    ax.legend(title="Структура данных", framealpha=0.4, fontsize=9)
     style_ax(ax)
     fig.tight_layout()
 
@@ -365,17 +363,14 @@ def plot_combined_throughput(targets, output_dir, agg, multi):
 
     # Explain the line styles once via a type legend
     legend_handles += [
-        mlines.Line2D([], [], color="black", linestyle="solid",  linewidth=2, label="DS throughput"),
-        mlines.Line2D([], [], color="black", linestyle="dashed", linewidth=2, label="work throughput"),
+        mlines.Line2D([], [], color="black", linestyle="solid",  linewidth=2, label="Операции со структурой"),
+        mlines.Line2D([], [], color="black", linestyle="dashed", linewidth=2, label="Фоновая работа"),
     ]
 
     ticks = all_cops(targets)
     setup_xaxis(ax, ticks)
     ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
-    agg_note = " [{}]".format(agg) if multi else ""
-    ax.set_title("DS vs work throughput vs coroutines" + agg_note,
-                 fontsize=11, fontweight="bold")
-    ax.legend(handles=legend_handles, framealpha=0.4, fontsize=9)
+    ax.legend(handles=legend_handles, title="Структура данных", framealpha=0.4, fontsize=9)
     style_ax(ax)
     fig.tight_layout()
 
@@ -410,11 +405,10 @@ def plot_push_pop(targets, output_dir, agg, multi):
                                 alpha=0.15, color=color)
 
     ticks = all_cops(targets)
-    for ax, title in [(ax_push, "total pushes"), (ax_pop, "total pops")]:
+    for ax, operation in [(ax_push, "push"), (ax_pop, "pop")]:
         setup_xaxis(ax, ticks)
-        ax.set_ylabel(AXIS_LABELS["operations"], fontsize=10)
-        ax.set_title(title, fontsize=11, fontweight="bold")
-        ax.legend(framealpha=0.4, fontsize=9)
+        ax.set_ylabel(AXIS_LABELS[operation], fontsize=10)
+        ax.legend(title="Структура данных", framealpha=0.4, fontsize=9)
         style_ax(ax)
 
     fig.tight_layout()
@@ -442,7 +436,6 @@ def plot_per_thread_boxplot(targets, output_dir):
                 labels.append(str(r["coroutines"]))
 
         if not dists:
-            ax.set_title("{}\n(no per-thread data)".format(ds_style(ds)["label"]))
             continue
 
         color = ds_style(ds)["color"]
@@ -459,14 +452,12 @@ def plot_per_thread_boxplot(targets, output_dir):
             patch.set_facecolor(matplotlib.colors.to_rgba(color, 0.2))
             patch.set_edgecolor(color)
 
-        n_runs = max((r.get("run_count", 1) for r in records), default=1)
-        run_note = " (pooled {} runs)".format(n_runs) if n_runs > 1 else ""
-        ax.set_title(ds_style(ds)["label"] + run_note, fontsize=10, fontweight="bold")
         ax.set_xlabel(AXIS_LABELS["x"], fontsize=9)
         ax.set_ylabel(AXIS_LABELS["per_thread"], fontsize=9)
+        ax.legend([bp["boxes"][0]], [ds_style(ds)["label"]],
+                  title="Структура данных", framealpha=0.4, fontsize=9)
         style_ax(ax)
 
-    fig.suptitle("per-thread op distribution", fontsize=11, fontweight="bold", y=1.02)
     fig.tight_layout()
     out = output_dir / "per_thread_distribution.png"
     fig.savefig(out, bbox_inches="tight")
@@ -495,14 +486,12 @@ def plot_repeats_scatter(targets, output_dir, run_dirs):
         x = [r["coroutines"]            for r in records]
         y = [r["throughput_ops_per_sec"] for r in records]
         ax.plot(x, y, color=color, linewidth=2, marker=ds_style(ds)["marker"],
-                markersize=5, zorder=3, label="aggregated")
+                markersize=5, zorder=3, label=ds_style(ds)["label"])
 
         ticks = sorted(set(x))
         setup_xaxis(ax, ticks)
         ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
-        ax.set_title("{} — per-run scatter ({} runs)".format(ds_style(ds)["label"], len(run_dirs)),
-                     fontsize=11, fontweight="bold")
-        ax.legend(framealpha=0.4, fontsize=9)
+        ax.legend(title="Структура данных", framealpha=0.4, fontsize=9)
         style_ax(ax)
         fig.tight_layout()
 

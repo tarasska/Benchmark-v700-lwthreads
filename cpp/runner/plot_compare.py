@@ -264,11 +264,11 @@ def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename
 
     # Two-column legend: left = DS colours, right = setup styles
     leg1 = ax.legend(handles=colour_handles, loc="upper left",
-                     title="data structure", framealpha=0.4, fontsize=9,
+                     title="Структура данных", framealpha=0.4, fontsize=9,
                      title_fontsize=8)
     ax.add_artist(leg1)
     ax.legend(handles=style_handles, loc="upper right",
-              title="setup", framealpha=0.4, fontsize=9, title_fontsize=8)
+              title="Вид потоков", framealpha=0.4, fontsize=9, title_fontsize=8)
 
     ticks = all_cops_from_setups(setups)
     setup_xaxis(ax, ticks)
@@ -277,8 +277,6 @@ def plot_comparison(setups, field, ylabel, title_base, output_dir, agg, filename
         ax.set_ylim(0, 100 if field == "zero_progress_percent" else 1)
     elif field in EXTRA_FIELDS:
         ax.set_ylim(bottom=0)
-    agg_note = " [{}]".format(agg) if multi else ""
-    ax.set_title(title_base + agg_note, fontsize=11, fontweight="bold")
     style_ax(ax)
     fig.tight_layout()
 
@@ -485,24 +483,22 @@ Examples:
             for i, (label, _) in enumerate(setups)
         ]
         style_handles += [
-            mlines.Line2D([], [], color="black", linewidth=2,  label="DS throughput"),
+            mlines.Line2D([], [], color="black", linewidth=2,  label="Операции со структурой"),
             mlines.Line2D([], [], color="black", linewidth=1.2, alpha=0.6,
-                          label="work throughput"),
+                          label="Фоновая работа"),
         ]
 
         leg1 = ax.legend(handles=colour_handles, loc="upper left",
-                         title="data structure", framealpha=0.4, fontsize=9,
+                         title="Структура данных", framealpha=0.4, fontsize=9,
                          title_fontsize=8)
         ax.add_artist(leg1)
         ax.legend(handles=style_handles, loc="upper right",
-                  title="setup / metric", framealpha=0.4, fontsize=9,
+                  title="Вид потоков", framealpha=0.4, fontsize=9,
                   title_fontsize=8)
 
         ticks = all_cops_from_setups(setups)
         setup_xaxis(ax, ticks)
         ax.set_ylabel(AXIS_LABELS["throughput"], fontsize=10)
-        ax.set_title("DS vs work throughput — setup comparison", fontsize=11,
-                     fontweight="bold")
         style_ax(ax)
         fig.tight_layout()
         out = args.output_dir / "compare_combined.png"
