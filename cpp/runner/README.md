@@ -198,3 +198,35 @@ metrics remain gaps; a metric missing from all panels is skipped.
 
 Output is 6300 × 1650 PNG at 300 dpi. Russian labels and JSON-configured DS
 appearance are shared with `plot_compare.py`.
+
+## Overnight yield-period sweep
+
+`build_and_run_yield_sweep.sh` runs the Argobots, Boost Fibers and OS builds for
+each compile-time `BENCH_YIELD_EVERY` value. Run it from any directory:
+
+```sh
+./cpp/runner/build_and_run_yield_sweep.sh \
+  --periods "0 16 64 256" --results-root sweep_results \
+  --repeats 5 --threads 16 --time-ms 20000 \
+  --nasl-dir /path/to/nasl-tools --boost-dir /path/to/boost \
+  --dry-run
+
+nohup ./cpp/runner/build_and_run_yield_sweep.sh \
+  --periods "0 16 64 256" --results-root sweep_results \
+  --repeats 5 --threads 16 --time-ms 20000 \
+  --nasl-dir /path/to/nasl-tools --boost-dir /path/to/boost \
+  > overnight.log 2>&1 &
+```
+
+Paths under a relative `--results-root` are relative to `cpp/runner/`. For
+K=64, results live in `sweep_results/yield_period=64/abt/output/v1/<ds>/`,
+`fibers/output/v1/<ds>/` and `os/output/v1/<ds>/`. Pass the backend's `output`
+directory to `plot_compare.py`. Each K gets its own three build directories and
+`yield_period=K/run.log`. The OS build also receives the same K.
+
+The wrapper rejects duplicate K values and existing result directories before
+starting. It checks that all expected JSON files exist and contain the selected
+`bench_yield_every` value after each period, then
+continues to the next K even if one period fails. A nonzero final exit code
+signals incomplete results. Other supported options include `--ds`,
+`--coroutines`, `--allocator` (name without `.so`) and `--projects-root`.
