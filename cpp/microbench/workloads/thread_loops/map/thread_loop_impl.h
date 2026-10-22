@@ -25,7 +25,7 @@ namespace microbench::workload::map {
         SOFTWARE_BARRIER;                                                          \
         TRACE COUTATOMICTID("waiting to start" << std::endl);                      \
     }                                                                              \
-    GSTATS_SET(tid, time_thread_start,                                             \
+    GSTATS_SET(threadId, time_thread_start,                                        \
                std::chrono::duration_cast<std::chrono::microseconds>(              \
                    std::chrono::high_resolution_clock::now() - this->g->startTime) \
                    .count());                                                      \
@@ -36,8 +36,8 @@ namespace microbench::workload::map {
 
 #define THREAD_MEASURED_POST                                                       \
     __sync_fetch_and_add(&this->g->running, -1);                                   \
-    DURATION_END(tid, duration_all_ops);                                           \
-    GSTATS_SET(tid, time_thread_terminate,                                         \
+    DURATION_END(threadId, duration_all_ops);                                      \
+    GSTATS_SET(threadId, time_thread_terminate,                                    \
                std::chrono::duration_cast<std::chrono::microseconds>(              \
                    std::chrono::high_resolution_clock::now() - this->g->startTime) \
                    .count());                                                      \
