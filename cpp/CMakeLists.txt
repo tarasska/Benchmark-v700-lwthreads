@@ -100,7 +100,7 @@ set(QUEUE_DS
     treiber_stack_fc_opt
     treiber_stack_fc_opt_comb_yield
     treiber_stack_fc_opt_backoff
-    treiber_stack_fc_opt_backoff_comb_yield
+    treiber_stack_fc_opt_backoff_4step
     treiber_stack_fc_opt_backoff_4step_comb_yield
     # stack_nasl_mcs
     stack_global_lock
