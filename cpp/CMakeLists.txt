@@ -8,6 +8,7 @@ set(BUILD_DIR "bin/")
 set(RECLAIM ".debra")
 
 option(ABT_SINGLE_POOL "Use one shared FIFO pool for all Argobots execution streams" OFF)
+option(BOOST_FIBERS_SHARED_WORK "Use one shared work queue for Boost fibers" OFF)
 
 # Application-level cooperative scheduling: 0 disables external yielding.
 set(BENCH_YIELD_EVERY "0" CACHE STRING "Yield after K completed adapter operations per logical worker (0 disables)")
@@ -221,6 +222,9 @@ foreach (DS ${QUEUE_DS})
         add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/boost_fibers/yield.cpp)
         target_link_libraries(${DS_RUN} PUBLIC nasl Boost::fiber Boost::fiber_numa)
         target_compile_definitions(${DS_RUN} PRIVATE USE_BOOST_FIBERS)
+        if (BOOST_FIBERS_SHARED_WORK)
+            target_compile_definitions(${DS_RUN} PRIVATE BOOST_FIBERS_SHARED_WORK)
+        endif ()
         if (USE_FIBERS_NUMA)
             target_compile_definitions(${DS_RUN} PRIVATE USE_FIBERS_NUMA)
         endif()

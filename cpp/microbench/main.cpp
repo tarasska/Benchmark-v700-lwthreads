@@ -214,6 +214,7 @@ volatile uint64_t g_coro_work_iterations = 0;
 
 #ifdef USE_BOOST_FIBERS
 #include <boost/fiber/all.hpp>
+#include <boost/fiber/algo/shared_work.hpp>
 #include <boost/fiber/numa/all.hpp>
 #endif
 
@@ -290,7 +291,6 @@ void execute(globals_t* g, Parameters* parameters) {
     if (num_os_threads <= 1) {
         // SINGLE OS THREAD
         std::cout << "initing fibers (single-thread mode)...\n";
-        //boost::fibers::use_scheduling_algorithm<boost::fibers::algo::round_robin>();
         std::vector<boost::fibers::fiber> fibers(parameters->get_num_threads());
         for (int i = 0; i < parameters->get_num_threads(); ++i) {
             fibers[i] = boost::fibers::fiber(&ThreadLoop::run, thread_loops[i]);
@@ -493,10 +493,18 @@ void await_termintation() {
     worker_terminate_cv.wait(lk, [](){ return !keep_alive; });
 }
 
-void init_work_stealing_thread(std::uint32_t thread_cnt, std::uint32_t cpu_id) {
+void configure_fiber_scheduler([[maybe_unused]] std::uint32_t thread_cnt) {
+#if defined(BOOST_FIBERS_SHARED_WORK)
+    boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>();
+#else
+    boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >(thread_cnt);
+#endif
+}
+
+void init_fiber_worker(std::uint32_t thread_cnt, std::uint32_t cpu_id) {
     print_thread();
     boost::fibers::numa::pin_thread(cpu_id);
-    boost::fibers::use_scheduling_algorithm< boost::fibers::algo::work_stealing >(thread_cnt);
+    configure_fiber_scheduler(thread_cnt);
     await_termintation();
 }
 
@@ -511,13 +519,17 @@ void init_numa_work_stealing_thread(
     await_termintation();
 }
 
-void construct_work_stealing_workers(size_t fiber_workers_cnt) {
+void construct_fiber_workers(size_t fiber_workers_cnt) {
+#if defined(BOOST_FIBERS_SHARED_WORK)
+    std::cout << "SHARED WORK SCHED WITH WORKERS=" << fiber_workers_cnt << std::endl;
+#else
     std::cout << "WORK STEALING SCHED WITH WORKERS=" << fiber_workers_cnt << std::endl;
+#endif
     boost::fibers::numa::pin_thread(0);
     for (size_t i = 1; i < fiber_workers_cnt; ++i) {
-        workers.emplace_back(init_work_stealing_thread, fiber_workers_cnt, i);
+        workers.emplace_back(init_fiber_worker, fiber_workers_cnt, i);
     }
-    boost::fibers::use_scheduling_algorithm<boost::fibers::algo::work_stealing>(fiber_workers_cnt);
+    configure_fiber_scheduler(fiber_workers_cnt);
 }
 
 void construct_numa_work_stealing_workers() {
@@ -568,7 +580,7 @@ void run(globals_t* g) {
 // #ifdef USE_FIBERS_NUMA
 //     construct_numa_work_stealing_workers();
 // #else
-    construct_work_stealing_workers(max_os_threads);
+    construct_fiber_workers(max_os_threads);
 //#endif    
 #endif
 
