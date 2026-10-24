@@ -7,6 +7,8 @@ set(DS_DIR "ds")
 set(BUILD_DIR "bin/")
 set(RECLAIM ".debra")
 
+option(ABT_SINGLE_POOL "Use one shared FIFO pool for all Argobots execution streams" OFF)
+
 # Application-level cooperative scheduling: 0 disables external yielding.
 set(BENCH_YIELD_EVERY "0" CACHE STRING "Yield after K completed adapter operations per logical worker (0 disables)")
 string(LENGTH "${BENCH_YIELD_EVERY}" BENCH_YIELD_EVERY_LENGTH)
@@ -226,6 +228,9 @@ foreach (DS ${QUEUE_DS})
         add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/argobots/yield.cpp)
         target_link_libraries(${DS_RUN} PUBLIC nasl argobots)
         target_compile_definitions(${DS_RUN} PRIVATE USE_ARGOBOTS)
+        if (ABT_SINGLE_POOL)
+            target_compile_definitions(${DS_RUN} PRIVATE ABT_SINGLE_POOL)
+        endif ()
     elseif (USE_OS)
         add_executable(${DS_RUN} ${SOURCE_EXE} common/nasl/os/yield.cpp)
         target_link_libraries(${DS_RUN} PUBLIC nasl)

@@ -220,7 +220,13 @@ volatile uint64_t g_coro_work_iterations = 0;
 #include <vector>
 
 #ifdef USE_ARGOBOTS
+#ifdef ABT_SINGLE_POOL
+#include "abt_helpers/single_pool_task_runner.hpp"
+using AbtTaskRunner = SinglePoolTaskRunner;
+#else
 #include "abt_helpers/shared_pool_task_runner.hpp"
+using AbtTaskRunner = SharedPoolTaskRunner;
+#endif
 
 void abt_thread_routine(void* args_ptr) {
     auto* thread_loop = reinterpret_cast<ThreadLoop*>(args_ptr);
@@ -351,7 +357,7 @@ void execute(globals_t* g, Parameters* parameters) {
 
     std::cout << "initing " << num_os_threads << " OS threads × " << fibers_per_thread << " fibers each...\n";
 
-    SharedPoolTaskRunner task_runner(BENCH_CORES, num_os_threads, static_cast<int>(parameters->get_num_threads()));
+    AbtTaskRunner task_runner(BENCH_CORES, num_os_threads, static_cast<int>(parameters->get_num_threads()));
     task_runner.run_threads(abt_thread_routine, thread_loops);
 
     std::cout << "done initiating...\n";
