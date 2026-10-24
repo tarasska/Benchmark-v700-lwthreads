@@ -172,14 +172,10 @@ private:
                 int tries = 0;
                 while (req.status != FCStatus::FINISHED && combiner_lock.load(std::memory_order_acquire) != 0) {
                     tries++;
-                    if (should_yield) {
-                        if (tries < SPIN_THRESHOLD) {
-                            spin(f(tid, tries));
-                        } else {
-                            nasl::core::yield();
-                        }
-                    } else {
+                    if (tries < SPIN_THRESHOLD) {
                         spin(f(tid, tries));
+                    } else {
+                        nasl::core::yield();
                     }
                 }
 
