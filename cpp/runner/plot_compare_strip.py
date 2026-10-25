@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Three comparison panels with shared numeric limits and separate labeled axes."""
+"""Comparison panels in rows with shared numeric limits and separate labeled axes."""
 import argparse
 import json
 from pathlib import Path
@@ -23,44 +23,69 @@ from sweep_plot_common import (
 def load_panels(path, requested_ds, agg):
     config = json.loads(path.read_text())
     labels = config.get("thread_types")
-    panels = config.get("panels")
     if (not isinstance(labels, list) or not labels or
             any(not isinstance(label, str) or not label.strip() for label in labels) or
             len(set(labels)) != len(labels) or len(labels) > len(SETUP_STYLES)):
         raise ValueError("thread_types must contain 1–4 unique nonempty labels")
-    if not isinstance(panels, list) or len(panels) != 3:
-        raise ValueError("panels must contain exactly three panels")
+    if "rows" in config and "panels" in config:
+        raise ValueError("Use either rows or panels, not both")
+    if "rows" in config:
+        rows = config["rows"]
+        if not isinstance(rows, list) or not rows:
+            raise ValueError("rows must contain at least one row")
+        for index, row in enumerate(rows, 1):
+            if not isinstance(row, list) or len(row) not in (2, 3):
+                raise ValueError(f"Row {index} must contain two or three panels")
+    else:
+        panels = config.get("panels")
+        if not isinstance(panels, list) or len(panels) != 3:
+            raise ValueError("panels must contain exactly three panels")
+        rows = [panels]
     loaded, style_dirs = [], []
-    for index, panel in enumerate(panels, 1):
-        if not isinstance(panel, dict):
-            raise ValueError(f"Panel {index} must be an object")
-        cores, paths = panel.get("cores"), panel.get("paths")
-        if type(cores) is not int or cores <= 0:
-            raise ValueError(f"Panel {index}: cores must be a positive integer")
-        if (not isinstance(paths, list) or len(paths) != len(labels) or
-                any(not isinstance(value, str) or not value for value in paths)):
-            raise ValueError(f"Panel {index}: paths must match thread_types in length and order")
-        setups = []
-        for label, value in zip(labels, paths):
-            root = path.parent / value
-            if not root.is_dir():
-                raise ValueError(f"Result directory not found: {root}")
-            targets = load_setup(root, requested_ds, agg)
-            if not targets:
-                raise ValueError(f"No matching results in {root}")
-            setups.append((label, targets))
-            style_dirs.extend(find_repeat_dirs(root))
-        loaded.append((cores, setups))
+    for row_index, row in enumerate(rows, 1):
+        loaded_row = []
+        for panel_index, panel in enumerate(row, 1):
+            location = f"Row {row_index}, panel {panel_index}"
+            if not isinstance(panel, dict):
+                raise ValueError(f"{location} must be an object")
+            cores, paths = panel.get("cores"), panel.get("paths")
+            if type(cores) is not int or cores <= 0:
+                raise ValueError(f"{location}: cores must be a positive integer")
+            if (not isinstance(paths, list) or len(paths) != len(labels) or
+                    any(not isinstance(value, str) or not value for value in paths)):
+                raise ValueError(f"{location}: paths must match thread_types in length and order")
+            setups = []
+            for label, value in zip(labels, paths):
+                root = path.parent / value
+                if not root.is_dir():
+                    raise ValueError(f"Result directory not found: {root}")
+                targets = load_setup(root, requested_ds, agg)
+                if not targets:
+                    raise ValueError(f"No matching results in {root}")
+                setups.append((label, targets))
+                style_dirs.extend(find_repeat_dirs(root))
+            loaded_row.append((cores, setups))
+        loaded.append(loaded_row)
     configure_ds_styles(discover_style_names(style_dirs))
     return loaded
 
 
-def draw_strip(panels, field, ylabel):
+def draw_strip(rows, field, ylabel):
+    panels = [panel for row in rows for panel in row]
     if not any(np.isfinite(r.get(field, float("nan")))
                for _, setups in panels for _, targets in setups
                for records in targets.values() for r in records):
         return None
-    fig, axes = plt.subplots(1, 3, figsize=(21, 5.5))
+    row_count = len(rows)
+    column_count = max(len(row) for row in rows)
+    fig, grid = plt.subplots(row_count, column_count,
+                             figsize=(7 * column_count, 5.5 * row_count),
+                             squeeze=False)
+    axes = []
+    for row_index, row in enumerate(rows):
+        axes.extend(grid[row_index, :len(row)])
+        for ax in grid[row_index, len(row):]:
+            fig.delaxes(ax)
     ticks = sorted({tick for _, setups in panels for tick in all_cops_from_setups(setups)})
     try:
         for ax, (cores, setups) in zip(axes, panels):

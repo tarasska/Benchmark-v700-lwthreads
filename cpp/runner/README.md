@@ -153,21 +153,27 @@ DS display names still come from the style JSON, and setup names from `--run`;
 these user-provided names are preserved. Edit `AXIS_LABELS`, `OPERATION_LABELS`
 and `LATENCY_LABELS` in `sweep_plot_common.py` to customize metric labels.
 
-## Three-panel comparison strip
+## Comparison grid
 
-Use `plot_compare_strip.py` to create a horizontal strip of three comparison
-panels. The metric, aggregation, DS selection and style file are shared CLI
-options. Only result paths and core counts differ per panel.
+Use `plot_compare_strip.py` to create rows of two or three comparison panels.
+The metric, aggregation, DS selection and style file are shared CLI options.
+Only result paths and core counts differ per panel.
 
 Copy `compare_strip.example.json` and edit its paths:
 
 ```json
 {
   "thread_types": ["Boost Fibers", "Argobots"],
-  "panels": [
-    {"cores": 4, "paths": ["results/4cores/boost", "results/4cores/argobots"]},
-    {"cores": 8, "paths": ["results/8cores/boost", "results/8cores/argobots"]},
-    {"cores": 16, "paths": ["results/16cores/boost", "results/16cores/argobots"]}
+  "rows": [
+    [
+      {"cores": 4, "paths": ["results/row1/4cores/boost", "results/row1/4cores/argobots"]},
+      {"cores": 8, "paths": ["results/row1/8cores/boost", "results/row1/8cores/argobots"]},
+      {"cores": 16, "paths": ["results/row1/16cores/boost", "results/row1/16cores/argobots"]}
+    ],
+    [
+      {"cores": 4, "paths": ["results/row2/4cores/boost", "results/row2/4cores/argobots"]},
+      {"cores": 8, "paths": ["results/row2/8cores/boost", "results/row2/8cores/argobots"]}
+    ]
   ]
 }
 ```
@@ -175,7 +181,8 @@ Copy `compare_strip.example.json` and edit its paths:
 `thread_types` defines the common legend labels and line-style order. Each
 panel's `paths` must follow that order. Paths are relative to the JSON file's
 directory (absolute paths also work). Each path supports either single results
-or `v1/`, `v2/`, etc. repeats. Exactly three panels are required.
+or `v1/`, `v2/`, etc. repeats. Every row contains two or three panels. The old
+top-level `panels` array with exactly three panels remains supported.
 
 ```sh
 python3 plot_compare_strip.py \
@@ -185,19 +192,20 @@ python3 plot_compare_strip.py \
   --latency-operations all --agg median --output-dir strip_plots
 ```
 
-Each selected metric produces a separate strip, e.g.
+Each selected metric produces a separate grid, e.g.
 `compare_strip_throughput_ops_per_sec.png`. Supported metrics: throughput,
 work throughput, latency mean/p95/p99 and the progress/fairness scalars.
 The single-plot `combined` and text `summary` options are not part of this mode.
 
 Each panel retains its axes, tick labels and legends, without a title. X uses
 base-2 log scaling; Y is linear. X/Y limits and tick positions are identical
-across all three panels and include all data, uncertainty bands and core markers.
-Colors and thread-type line styles are consistent throughout the strip. Missing
+across all panels and include all data, uncertainty bands and core markers.
+Colors and thread-type line styles are consistent throughout the grid. Missing
 metrics remain gaps; a metric missing from all panels is skipped.
 
-Output is 6300 × 1650 PNG at 300 dpi. Russian labels and JSON-configured DS
-appearance are shared with `plot_compare.py`.
+Each tile is 2100 × 1650 pixels at 300 dpi; a row with two panels leaves the
+last cell empty when another row has three. Russian labels and JSON-configured
+DS appearance are shared with `plot_compare.py`.
 
 ## Overnight yield-period sweep
 

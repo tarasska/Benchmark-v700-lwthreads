@@ -1,8 +1,14 @@
 {
   "thread_types": ["Boost Fibers", "Argobots"],
-  "panels": [
-    {"cores": 4, "paths": ["results/4cores/boost", "results/4cores/argobots"]},
-    {"cores": 8, "paths": ["results/8cores/boost", "results/8cores/argobots"]},
-    {"cores": 16, "paths": ["results/16cores/boost", "results/16cores/argobots"]}
+  "rows": [
+    [
+      {"cores": 4, "paths": ["results/row1/4cores/boost", "results/row1/4cores/argobots"]},
+      {"cores": 8, "paths": ["results/row1/8cores/boost", "results/row1/8cores/argobots"]},
+      {"cores": 16, "paths": ["results/row1/16cores/boost", "results/row1/16cores/argobots"]}
+    ],
+    [
+      {"cores": 4, "paths": ["results/row2/4cores/boost", "results/row2/4cores/argobots"]},
+      {"cores": 8, "paths": ["results/row2/8cores/boost", "results/row2/8cores/argobots"]}
+    ]
   ]
 }
