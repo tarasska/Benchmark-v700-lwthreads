@@ -157,7 +157,7 @@ and `LATENCY_LABELS` in `sweep_plot_common.py` to customize metric labels.
 
 Use `plot_compare_strip.py` to create rows of two or three comparison panels.
 The metric, aggregation, DS selection and style file are shared CLI options.
-Only result paths and core counts differ per panel.
+Result paths, core counts and thread-type labels may differ per panel.
 
 Copy `compare_strip.example.json` and edit its paths:
 
@@ -171,15 +171,17 @@ Copy `compare_strip.example.json` and edit its paths:
       {"cores": 16, "paths": ["results/row1/16cores/boost", "results/row1/16cores/argobots"]}
     ],
     [
-      {"cores": 4, "paths": ["results/row2/4cores/boost", "results/row2/4cores/argobots"]},
-      {"cores": 8, "paths": ["results/row2/8cores/boost", "results/row2/8cores/argobots"]}
+      {"cores": 4, "thread_types": ["Boost shared_work", "Argobots single pool"], "paths": ["results/row2/4cores/boost", "results/row2/4cores/argobots"]},
+      {"cores": 8, "thread_types": ["Boost shared_work"], "paths": ["results/row2/8cores/boost"]}
     ]
   ]
 }
 ```
 
-`thread_types` defines the common legend labels and line-style order. Each
-panel's `paths` must follow that order. Paths are relative to the JSON file's
+The root `thread_types` supplies default legend labels. A panel can override
+them with its own `thread_types`; the root field can be omitted when every panel
+defines its own. Each panel's `paths` must match its effective `thread_types`
+in length and order. Line styles follow this order within each panel. Paths are relative to the JSON file's
 directory (absolute paths also work). Each path supports either single results
 or `v1/`, `v2/`, etc. repeats. Every row contains two or three panels. The old
 top-level `panels` array with exactly three panels remains supported.

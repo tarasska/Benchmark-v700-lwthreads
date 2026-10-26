@@ -20,13 +20,18 @@ from sweep_plot_common import (
 )
 
 
-def load_panels(path, requested_ds, agg):
-    config = json.loads(path.read_text())
-    labels = config.get("thread_types")
+def validate_thread_types(labels, location):
     if (not isinstance(labels, list) or not labels or
             any(not isinstance(label, str) or not label.strip() for label in labels) or
             len(set(labels)) != len(labels) or len(labels) > len(SETUP_STYLES)):
-        raise ValueError("thread_types must contain 1–4 unique nonempty labels")
+        raise ValueError(f"{location}: thread_types must contain 1–4 unique nonempty labels")
+
+
+def load_panels(path, requested_ds, agg):
+    config = json.loads(path.read_text())
+    default_labels = config.get("thread_types")
+    if "thread_types" in config:
+        validate_thread_types(default_labels, "Config")
     if "rows" in config and "panels" in config:
         raise ValueError("Use either rows or panels, not both")
     if "rows" in config:
@@ -48,6 +53,8 @@ def load_panels(path, requested_ds, agg):
             location = f"Row {row_index}, panel {panel_index}"
             if not isinstance(panel, dict):
                 raise ValueError(f"{location} must be an object")
+            labels = panel.get("thread_types", default_labels)
+            validate_thread_types(labels, location)
             cores, paths = panel.get("cores"), panel.get("paths")
             if type(cores) is not int or cores <= 0:
                 raise ValueError(f"{location}: cores must be a positive integer")

@@ -7,8 +7,8 @@
       {"cores": 16, "paths": ["results/row1/16cores/boost", "results/row1/16cores/argobots"]}
     ],
     [
-      {"cores": 4, "paths": ["results/row2/4cores/boost", "results/row2/4cores/argobots"]},
-      {"cores": 8, "paths": ["results/row2/8cores/boost", "results/row2/8cores/argobots"]}
+      {"cores": 4, "thread_types": ["Boost shared_work", "Argobots single pool"], "paths": ["results/row2/4cores/boost", "results/row2/4cores/argobots"]},
+      {"cores": 8, "thread_types": ["Boost shared_work"], "paths": ["results/row2/8cores/boost"]}
     ]
   ]
 }
